@@ -50,20 +50,27 @@ export default function ProjectFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
-  console.log('开始提交', formData);  // 添加这行
   if (!canEdit) return;
   setLoading(true);
   try {
+    // 处理空值：将空字符串转为 null
+    const submitData = {
+      ...formData,
+      contract_amount: formData.contract_amount === '' ? null : parseFloat(formData.contract_amount),
+      start_date: formData.start_date === '' ? null : formData.start_date,
+      end_date: formData.end_date === '' ? null : formData.end_date,
+    };
+    
     if (isEdit) {
-      await api.projects.update(id, formData);
+      await api.projects.update(id, submitData);
     } else {
-      await api.projects.create(formData);
+      await api.projects.create(submitData);
     }
     navigate('/projects');
   } catch (error: any) {
-    console.error('提交失败:', error);  // 添加这行
+    console.error('提交失败:', error);
     alert(error.message);
   } finally {
     setLoading(false);
