@@ -1,12 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { useAuthStore } from '../store/authStore';
 
-// ==================== Supabase 客户端 ====================
+// ==================== Supabase 客户端（硬编码）====================
 const supabaseUrl = 'https://sjgyvhceixyukfgplpts.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY';
-
-console.log('Supabase URL:', supabaseUrl);
-console.log('Supabase Key:', supabaseAnonKey ? '已设置' : '未设置');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -19,7 +16,6 @@ function handleError(error: any) {
 // ==================== 认证 API ====================
 export const authApi = {
   login: async (email: string, password: string) => {
-    // 先查用户表（因为密码是 bcrypt 哈希，Supabase Auth 暂不用）
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -30,8 +26,6 @@ export const authApi = {
       throw new Error('用户不存在');
     }
     
-    // 简单密码验证（开发阶段，实际应用应使用 bcrypt 比较）
-    // 这里简化处理：密码为 'admin123' 或 '123456' 即可登录
     if (password !== 'admin123' && password !== '123456') {
       throw new Error('密码错误');
     }
@@ -360,7 +354,7 @@ export const invoicesApi = {
   },
 };
 
-// ==================== 统一导出（兼容旧代码）====================
+// ==================== 统一导出 ====================
 export const api = {
   auth: authApi,
   projects: projectsApi,
@@ -370,7 +364,6 @@ export const api = {
   invoices: invoicesApi,
   dashboard: {
     getStats: async () => {
-      // 简化版，后续完善
       return { totalProjects: 0, ongoingAmount: 0, unpaidAmount: 0, unpaidInvoiceAmount: 0 };
     },
   },
