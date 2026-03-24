@@ -57,6 +57,7 @@ export const authApi = {
 // ==================== 项目管理 API ====================
 export const projectsApi = {
   list: async (params?: { page?: number; pageSize?: number; keyword?: string; status?: string }) => {
+    console.log('projects.list 被调用', params);
     let query = supabase.from('projects').select('*', { count: 'exact' });
     
     if (params?.keyword) {
@@ -72,45 +73,74 @@ export const projectsApi = {
     const to = from + pageSize - 1;
     
     const { data, error, count } = await query.range(from, to).order('created_at', { ascending: false });
-    if (error) handleError(error);
-    
+    if (error) {
+      console.error('projects.list 错误:', error);
+      handleError(error);
+    }
+    console.log('projects.list 结果:', data?.length, '条');
     return { data: data || [], total: count || 0, page, pageSize };
   },
   
   get: async (id: string) => {
+    console.log('projects.get 被调用', id);
     const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
-    if (error) handleError(error);
+    if (error) {
+      console.error('projects.get 错误:', error);
+      handleError(error);
+    }
     return data;
   },
   
   create: async (data: any) => {
+    console.log('projects.create 被调用，数据:', data);
+    const insertData = {
+      ...data,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    console.log('准备插入的数据:', insertData);
+    
     const { data: result, error } = await supabase
       .from('projects')
-      .insert([{ ...data, id: crypto.randomUUID(), created_at: new Date() }])
+      .insert([insertData])
       .select()
       .single();
-    if (error) handleError(error);
+    
+    if (error) {
+      console.error('projects.create Supabase 错误:', error);
+      console.error('错误详情:', error.message, error.details, error.hint);
+      throw new Error(`保存失败: ${error.message}`);
+    }
+    console.log('projects.create 成功，返回:', result);
     return result;
   },
   
   update: async (id: string, data: any) => {
+    console.log('projects.update 被调用', id, data);
     const { data: result, error } = await supabase
       .from('projects')
-      .update({ ...data, updated_at: new Date() })
+      .update({ ...data, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
-    if (error) handleError(error);
+    if (error) {
+      console.error('projects.update 错误:', error);
+      handleError(error);
+    }
     return result;
   },
   
   delete: async (id: string) => {
+    console.log('projects.delete 被调用', id);
     const { error } = await supabase.from('projects').delete().eq('id', id);
-    if (error) handleError(error);
+    if (error) {
+      console.error('projects.delete 错误:', error);
+      handleError(error);
+    }
     return null;
   },
 };
-
 // ==================== 供应商管理 API ====================
 export const suppliersApi = {
   list: async (params?: { page?: number; pageSize?: number; keyword?: string; category?: string }) => {

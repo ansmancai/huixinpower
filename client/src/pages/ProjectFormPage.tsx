@@ -51,22 +51,24 @@ export default function ProjectFormPage() {
   }, [id, isEdit, canEdit, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit) return;
-    setLoading(true);
-    try {
-      if (isEdit) {
-        await api.projects.update(id, formData);
-      } else {
-        await api.projects.create(formData);
-      }
-      navigate('/projects');
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  console.log('开始提交', formData);  // 添加这行
+  if (!canEdit) return;
+  setLoading(true);
+  try {
+    if (isEdit) {
+      await api.projects.update(id, formData);
+    } else {
+      await api.projects.create(formData);
     }
-  };
+    navigate('/projects');
+  } catch (error: any) {
+    console.error('提交失败:', error);  // 添加这行
+    alert(error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
