@@ -2,12 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { useAuthStore } from '../store/authStore';
 
 // ==================== Supabase 客户端 ====================
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = 'https://sjgyvhceixyukfgplpts.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('缺少 Supabase 环境变量，请检查 .env 或 EdgeOne 环境变量配置');
-}
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Key:', supabaseAnonKey ? '已设置' : '未设置');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
