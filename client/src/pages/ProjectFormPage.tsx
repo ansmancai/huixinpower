@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/client';
 import { useAuthStore } from '../store/authStore';
+import { supabase } from '../api/client';
 
 export default function ProjectFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,19 +28,27 @@ export default function ProjectFormPage() {
     if (isEdit && canEdit) {
       const loadProject = async () => {
         try {
-          const data = await api.projects.get(id);
-          setFormData({
-            name: data.name || '',
-            code: data.code || '',
-            status: data.status || 'ongoing',
-            client: data.client || '',
-            contractor: data.contractor || '汇信电力',
-            contract_no: data.contract_no || '',
-            contract_amount: data.contract_amount || '',
-            start_date: data.start_date || '',
-            end_date: data.end_date || '',
-            remark: data.remark || '',
-          });
+          const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (error) throw error;
+          if (data) {
+            setFormData({
+              name: data.name || '',
+              code: data.code || '',
+              status: data.status || 'ongoing',
+              client: data.client || '',
+              contractor: data.contractor || '汇信电力',
+              contract_no: data.contract_no || '',
+              contract_amount: data.contract_amount || '',
+              start_date: data.start_date || '',
+              end_date: data.end_date || '',
+              remark: data.remark || '',
+            });
+          }
         } catch (error) {
           console.error('加载项目失败', error);
           navigate('/projects');
@@ -50,32 +58,52 @@ export default function ProjectFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!canEdit) return;
-  setLoading(true);
-  try {
-    // 处理空值：将空字符串转为 null
-    const submitData = {
-      ...formData,
-      contract_amount: formData.contract_amount === '' ? null : parseFloat(formData.contract_amount),
-      start_date: formData.start_date === '' ? null : formData.start_date,
-      end_date: formData.end_date === '' ? null : formData.end_date,
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEdit) return;
+    setLoading(true);
     
-    if (isEdit) {
-      await api.projects.update(id, submitData);
-    } else {
-      await api.projects.create(submitData);
+    try {
+      // 准备提交数据：空字符串转为 null，数字字段转为数字
+      const submitData: any = {
+        name: formData.name,
+        code: formData.code,
+        status: formData.status,
+        client: formData.client || null,
+        contractor: formData.contractor || '汇信电力',
+        contract_no: formData.contract_no || null,
+        contract_amount: formData.contract_amount === '' ? null : parseFloat(formData.contract_amount),
+        start_date: formData.start_date === '' ? null : formData.start_date,
+        end_date: formData.end_date === '' ? null : formData.end_date,
+        remark: formData.remark || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (isEdit) {
+        const { error } = await supabase
+          .from('projects')
+          .update(submitData)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('projects')
+          .insert([{
+            ...submitData,
+            id: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+          }]);
+        if (error) throw error;
+      }
+      
+      navigate('/projects');
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      alert(error.message || '保存失败');
+    } finally {
+      setLoading(false);
     }
-    navigate('/projects');
-  } catch (error: any) {
-    console.error('提交失败:', error);
-    alert(error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
@@ -93,7 +121,7 @@ export default function ProjectFormPage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -103,7 +131,7 @@ export default function ProjectFormPage() {
               required
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -186,10 +214,18 @@ export default function ProjectFormPage() {
           </div>
         </div>
         <div className="flex gap-3 pt-4">
-          <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
             {loading ? '保存中...' : '保存'}
           </button>
-          <button type="button" onClick={() => navigate('/projects')} className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
+          >
             取消
           </button>
         </div>
