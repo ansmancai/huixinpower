@@ -38,60 +38,99 @@ export default function PurchasesPage() {
   }, []);
 
   const loadPurchases = async () => {
-    setLoading(true);
-    try {
-      let query = supabase.from('purchases').select('*, projects(name), suppliers(name)', { count: 'exact' });
-      if (keyword) query = query.ilike('content', `%${keyword}%`);
-      if (projectId !== 'all') query = query.eq('project_id', projectId);
-      if (supplierId !== 'all') query = query.eq('supplier_id', supplierId);
-      if (logisticsStatus !== 'all') query = query.eq('logistics_status', logisticsStatus);
+  setLoading(true);
+  try {
+    // 先构建基础查询（不带分页）
+    let baseQuery = supabase.from('purchases').select('*, projects(name), suppliers(name)', { count: 'exact' });
+    
+    if (keyword) {
+      baseQuery = baseQuery.ilike('content', `%${keyword}%`);
+    }
+    if (projectId !== 'all') {
+      baseQuery = baseQuery.eq('project_id', projectId);
+    }
+    if (supplierId !== 'all') {
+      baseQuery = baseQuery.eq('supplier_id', supplierId);
+    }
+    if (logisticsStatus !== 'all') {
+      baseQuery = baseQuery.eq('logistics_status', logisticsStatus);
+    }
+    
+    // 获取全部数据用于统计
+    const { data: allData, count: totalCount } = await baseQuery;
+    
+    // 获取付款和收票数据（用于统计）
+    const purchaseIds = allData?.map(p => p.id) || [];
+    if (purchaseIds.length > 0) {
+      const { data: payments } = await supabase
+        .from('transactions')
+        .select('purchase_id, amount')
+        .eq('type', 'payment')
+        .in('purchase_id', purchaseIds);
       
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      const { data, error, count } = await query.range(from, to).order('purchase_date', { ascending: false });
-      if (error) throw error;
+      const { data: invoices } = await supabase
+        .from('invoices')
+        .select('purchase_id, total_amount')
+        .eq('type', 'input')
+        .in('purchase_id', purchaseIds);
       
-      const purchaseIds = data?.map(p => p.id) || [];
-      if (purchaseIds.length > 0) {
-        const { data: payments } = await supabase.from('transactions').select('purchase_id, amount').eq('type', 'payment').in('purchase_id', purchaseIds);
-        const { data: invoices } = await supabase.from('invoices').select('purchase_id, total_amount').eq('type', 'input').in('purchase_id', purchaseIds);
-        const paymentMap: Record<string, number> = {};
-        const invoiceMap: Record<string, number> = {};
-        payments?.forEach(p => paymentMap[p.purchase_id] = (paymentMap[p.purchase_id] || 0) + Math.abs(parseFloat(p.amount)));
-        invoices?.forEach(i => invoiceMap[i.purchase_id] = (invoiceMap[i.purchase_id] || 0) + parseFloat(i.total_amount));
-        data?.forEach(p => { p.paidAmount = paymentMap[p.id] || 0; p.invoicedAmount = invoiceMap[p.id] || 0; });
-        
-        const totalAmount = data.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-        const totalPaid = Object.values(paymentMap).reduce((a, b) => a + b, 0);
-        const totalInvoiced = Object.values(invoiceMap).reduce((a, b) => a + b, 0);
-        const uniqueSuppliers = new Set(data.map(p => p.supplier_id).filter(Boolean)).size;
-        setSummary({ totalAmount, totalPaid, totalInvoiced, uniqueSuppliers });
-      }
+      const paymentMap: Record<string, number> = {};
+      const invoiceMap: Record<string, number> = {};
       
-      // 前端筛选付款状态和收票状态
-      let filteredData = data || [];
-      if (paymentStatus !== 'all') {
-        filteredData = filteredData.filter(p => {
-          const paidPercent = (p.paidAmount / parseFloat(p.amount)) * 100;
-          if (paymentStatus === 'paid') return paidPercent >= 100;
-          if (paymentStatus === 'partial') return paidPercent > 0 && paidPercent < 100;
-          return paidPercent === 0;
-        });
-      }
-      if (invoiceStatus !== 'all') {
-        filteredData = filteredData.filter(p => {
-          const invoicedPercent = (p.invoicedAmount / parseFloat(p.amount)) * 100;
-          if (invoiceStatus === 'invoiced') return invoicedPercent >= 100;
-          if (invoiceStatus === 'partial') return invoicedPercent > 0 && invoicedPercent < 100;
-          return invoicedPercent === 0;
-        });
-      }
+      payments?.forEach(p => {
+        paymentMap[p.purchase_id] = (paymentMap[p.purchase_id] || 0) + Math.abs(parseFloat(p.amount));
+      });
+      invoices?.forEach(i => {
+        invoiceMap[i.purchase_id] = (invoiceMap[i.purchase_id] || 0) + parseFloat(i.total_amount);
+      });
       
-      setPurchases(filteredData);
-      setTotal(filteredData.length);
-    } catch (error) { console.error('加载采购单失败', error); } finally { setLoading(false); }
-  };
-
+      allData?.forEach(p => {
+        p.paidAmount = paymentMap[p.id] || 0;
+        p.invoicedAmount = invoiceMap[p.id] || 0;
+      });
+      
+      // 计算汇总（基于全部数据）
+      const totalAmount = allData.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+      const totalPaid = Object.values(paymentMap).reduce((a, b) => a + b, 0);
+      const totalInvoiced = Object.values(invoiceMap).reduce((a, b) => a + b, 0);
+      const uniqueSuppliers = new Set(allData.map(p => p.supplier_id).filter(Boolean)).size;
+      
+      setSummary({ totalAmount, totalPaid, totalInvoiced, uniqueSuppliers });
+    }
+    
+    // 然后获取分页数据用于显示
+    let pageQuery = baseQuery;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data: pageData } = await pageQuery.range(from, to).order('purchase_date', { ascending: false });
+    
+    // 前端筛选付款状态和收票状态
+    let filteredData = pageData || [];
+    if (paymentStatus !== 'all') {
+      filteredData = filteredData.filter(p => {
+        const paidPercent = (p.paidAmount / parseFloat(p.amount)) * 100;
+        if (paymentStatus === 'paid') return paidPercent >= 100;
+        if (paymentStatus === 'partial') return paidPercent > 0 && paidPercent < 100;
+        return paidPercent === 0;
+      });
+    }
+    if (invoiceStatus !== 'all') {
+      filteredData = filteredData.filter(p => {
+        const invoicedPercent = (p.invoicedAmount / parseFloat(p.amount)) * 100;
+        if (invoiceStatus === 'invoiced') return invoicedPercent >= 100;
+        if (invoiceStatus === 'partial') return invoicedPercent > 0 && invoicedPercent < 100;
+        return invoicedPercent === 0;
+      });
+    }
+    
+    setPurchases(filteredData);
+    setTotal(totalCount || 0);
+  } catch (error) {
+    console.error('加载采购单失败', error);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => { loadPurchases(); }, [page, projectId, supplierId, logisticsStatus, paymentStatus, invoiceStatus]);
   useEffect(() => { const timer = setTimeout(() => { setPage(1); loadPurchases(); }, 300); return () => clearTimeout(timer); }, [keyword]);
 

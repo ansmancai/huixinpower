@@ -33,79 +33,43 @@ export default function InvoicesPage() {
   }, []);
 
   const loadInvoices = async () => {
-    setLoading(true);
-    try {
-      let query = supabase.from('invoices').select('*, projects(name), suppliers(name)', { count: 'exact' });
+  setLoading(true);
+  try {
+    // 构建基础查询（不带分页）
+    let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name)', { count: 'exact' });
+    
+    if (keyword) {
+      const { data: matchedProjects } = await supabase.from('projects').select('id').ilike('name', `%${keyword}%`);
+      const { data: matchedSuppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${keyword}%`);
+      const projectIds = matchedProjects?.map(p => p.id) || [];
+      const supplierIds = matchedSuppliers?.map(s => s.id) || [];
       
-      if (keyword) {
-  // 先搜索匹配的项目ID
-  const { data: matchedProjects } = await supabase
-    .from('projects')
-    .select('id')
-    .ilike('name', `%${keyword}%`);
-  const projectIds = matchedProjects?.map(p => p.id) || [];
-  
-  // 搜索匹配的供应商ID
-  const { data: matchedSuppliers } = await supabase
-    .from('suppliers')
-    .select('id')
-    .ilike('name', `%${keyword}%`);
-  const supplierIds = matchedSuppliers?.map(s => s.id) || [];
-  
-  // 构建搜索条件
-  const conditions = [`invoice_no.ilike.%${keyword}%`];
-  if (projectIds.length > 0) {
-    conditions.push(`project_id.in.(${projectIds.join(',')})`);
-  }
-  if (supplierIds.length > 0) {
-    conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
-  }
-  
-  query = query.or(conditions.join(','));
-}
-      if (type !== 'all') {
-        query = query.eq('type', type);
-      }
-      if (projectId !== 'all') {
-        query = query.eq('project_id', projectId);
-      }
-      if (status !== 'all') {
-        query = query.eq('status', status);
-      }
-      
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      const { data, error, count } = await query.range(from, to).order('invoice_date', { ascending: false });
-      if (error) throw error;
-      
-      setInvoices(data || []);
-      setTotal(count || 0);
-    } catch (error) {
-      console.error('加载发票失败', error);
-    } finally {
-      setLoading(false);
+      const conditions = [`invoice_no.ilike.%${keyword}%`];
+      if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
+      if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+      baseQuery = baseQuery.or(conditions.join(','));
     }
-  };
-
-  useEffect(() => {
-    loadInvoices();
-  }, [page, type, projectId, status]);
-
-  useEffect(() => {
-    if (searchTimer) clearTimeout(searchTimer);
-    const timer = setTimeout(() => { setPage(1); loadInvoices(); }, 300);
-    setSearchTimer(timer);
-    return () => clearTimeout(timer);
-  }, [keyword]);
-
-  const handleDelete = async (id: string, no: string) => {
-    if (!confirm(`确定要删除发票 "${no}" 吗？`)) return;
-    try {
-      await supabase.from('invoices').delete().eq('id', id);
-      loadInvoices();
-    } catch (error: any) { alert(error.message); }
-  };
+    
+    if (type !== 'all') baseQuery = baseQuery.eq('type', type);
+    if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
+    if (status !== 'all') baseQuery = baseQuery.eq('status', status);
+    
+    // 获取全部数据用于统计（这里只用于计数，不需要额外统计）
+    const { count: totalCount } = await baseQuery;
+    
+    // 分页数据
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data: pageData } = await baseQuery.range(from, to).order('invoice_date', { ascending: false });
+    
+    setInvoices(pageData || []);
+    setTotal(totalCount || 0);
+  } catch (error) {
+    console.error('加载发票失败', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
   const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款',cancelled: '作废' };

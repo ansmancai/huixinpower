@@ -24,95 +24,51 @@ export default function TransactionsPage() {
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
   const loadTransactions = async () => {
-  setLoading(true);
-  try {
-    let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
-    
-    // 关键词搜索（支持备注、支付方式、项目名、供应商名）
-    if (keyword && keyword.trim() !== '') {
-      // 先搜索匹配的项目ID
-      const { data: matchedProjects } = await supabase
-        .from('projects')
-        .select('id')
-        .ilike('name', `%${keyword}%`);
-      const projectIds = matchedProjects?.map(p => p.id) || [];
+    setLoading(true);
+    try {
+      // 构建基础查询（不带分页）
+      let baseQuery = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
-      // 搜索匹配的供应商ID
-      const { data: matchedSuppliers } = await supabase
-        .from('suppliers')
-        .select('id')
-        .ilike('name', `%${keyword}%`);
-      const supplierIds = matchedSuppliers?.map(s => s.id) || [];
-      
-      // 构建搜索条件
-      const conditions = [];
-      conditions.push(`remark.ilike.%${keyword}%`);
-      conditions.push(`payment_method.ilike.%${keyword}%`);
-      if (projectIds.length > 0) {
-        conditions.push(`project_id.in.(${projectIds.join(',')})`);
-      }
-      if (supplierIds.length > 0) {
-        conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+      if (keyword && keyword.trim() !== '') {
+        const { data: matchedProjects } = await supabase.from('projects').select('id').ilike('name', `%${keyword}%`);
+        const { data: matchedSuppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${keyword}%`);
+        const projectIds = matchedProjects?.map(p => p.id) || [];
+        const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+        
+        const conditions = [`remark.ilike.%${keyword}%`, `payment_method.ilike.%${keyword}%`];
+        if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
+        if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        baseQuery = baseQuery.or(conditions.join(','));
       }
       
-      query = query.or(conditions.join(','));
+      if (type && type !== 'all') baseQuery = baseQuery.eq('type', type);
+      if (startDate) baseQuery = baseQuery.gte('date', startDate);
+      if (endDate) baseQuery = baseQuery.lte('date', endDate);
+      
+      // 获取全部数据用于统计
+      const { data: allData, count: totalCount } = await baseQuery;
+      
+      const totalReceipt = allData?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
+      const totalPayment = allData?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+      setSummary({ totalReceipt, totalPayment });
+      
+      // 分页数据
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data: pageData } = await baseQuery.range(from, to).order('date', { ascending: false });
+      
+      setTransactions(pageData || []);
+      setTotal(totalCount || 0);
+    } catch (error) {
+      console.error('加载交易记录失败', error);
+    } finally {
+      setLoading(false);
     }
-    
-    // 类型筛选
-    if (type && type !== 'all') {
-      query = query.eq('type', type);
-    }
-    
-    // 日期范围筛选
-    if (startDate && startDate !== '') {
-      query = query.gte('date', startDate);
-    }
-    if (endDate && endDate !== '') {
-      query = query.lte('date', endDate);
-    }
-    
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    
-    const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
-    if (error) throw error;
-    
-    console.log('查询结果:', data?.length, '条');
-    
-    const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
-    const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-    setSummary({ totalReceipt, totalPayment });
-    
-    setTransactions(data || []);
-    setTotal(count || 0);
-  } catch (error) {
-    console.error('加载交易记录失败', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-  // 当任何筛选条件变化时重新加载，重置页码为1
   useEffect(() => {
-    setPage(1);
     loadTransactions();
-  }, [type, startDate, endDate]);
-
-  // 关键词搜索用防抖
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1);
-      loadTransactions();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [keyword]);
-
-  // 页码变化时重新加载
-  useEffect(() => {
-    if (page !== 1) {
-      loadTransactions();
-    }
-  }, [page]);
+  }, [page, type, startDate, endDate, keyword]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这条记录吗？')) return;
@@ -152,7 +108,6 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-gray-500 text-sm">收款总额</p>
@@ -164,133 +119,47 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* 筛选栏 */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
-        <input
-          type="text"
-          placeholder="搜索备注、方式、关联项目/供应商..."
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
-        />
+        <input type="text" placeholder="搜索备注、方式、关联项目/供应商..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" />
         <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg">
           <option value="all">全部类型</option>
           <option value="receipt">收款</option>
           <option value="payment">付款</option>
         </select>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="px-3 py-2 border rounded-lg"
-          placeholder="开始日期"
-        />
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="px-3 py-2 border rounded-lg" />
         <span className="self-center">至</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="px-3 py-2 border rounded-lg"
-          placeholder="结束日期"
-        />
+        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 border rounded-lg" />
       </div>
 
-      {loading ? (
-        <div className="text-center py-12">加载中...</div>
-      ) : (
+      {loading ? <div className="text-center py-12">加载中...</div> : (
         <>
           <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="w-full min-w-[1100px]">
               <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left">日期</th>
-                  <th className="px-4 py-3 text-left">类型</th>
-                  <th className="px-4 py-3 text-right">金额</th>
-                  <th className="px-4 py-3 text-left">方式</th>
-                  <th className="px-4 py-3 text-left">关联项目</th>
-                  <th className="px-4 py-3 text-left">关联供应商</th>
-                  <th className="px-4 py-3 text-left">关联采购</th>
-                  <th className="px-4 py-3 text-left">备注</th>
-                  <th className="px-4 py-3 text-center">操作</th>
-                 </tr>
+                <tr><th className="px-4 py-3 text-left">日期</th><th className="px-4 py-3 text-left">类型</th><th className="px-4 py-3 text-right">金额</th><th className="px-4 py-3 text-left">方式</th><th className="px-4 py-3 text-left">关联项目</th><th className="px-4 py-3 text-left">关联供应商</th><th className="px-4 py-3 text-left">关联采购</th><th className="px-4 py-3 text-left">备注</th><th className="px-4 py-3 text-center">操作</th></tr>
               </thead>
               <tbody className="divide-y">
-                {transactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center py-8 text-gray-500">
-                      暂无数据
-                    </td>
+                {transactions.map(t => (
+                  <tr key={t.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm">{new Date(t.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3"><span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{t.type === 'receipt' ? '收款' : '付款'}</span></td>
+                    <td className="px-4 py-3 text-right"><span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>{t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}</span></td>
+                    <td className="px-4 py-3 text-sm">{paymentMethodMap[t.payment_method] || t.payment_method}</td>
+                    <td className="px-4 py-3 text-sm">{t.project_id ? <Link to={`/projects/${t.project_id}`} className="text-blue-600 hover:underline">{t.projects?.name}</Link> : '-'}</td>
+                    <td className="px-4 py-3 text-sm">{t.supplier_id ? <Link to={`/suppliers/${t.supplier_id}`} className="text-blue-600 hover:underline">{t.suppliers?.name}</Link> : '-'}</td>
+                    <td className="px-4 py-3 text-sm">{t.purchase_id ? <Link to={`/purchases/${t.purchase_id}`} className="text-blue-600 hover:underline">查看</Link> : '-'}</td>
+                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
+                    <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><Link to={`/transactions/${t.id}`} className="text-blue-600 text-sm">查看</Link>{canEdit && <Link to={`/transactions/${t.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}{user?.role === 'admin' && <button onClick={() => handleDelete(t.id)} className="text-red-600 text-sm">删除</button>}</div></td>
                   </tr>
-                ) : (
-                  transactions.map((t) => (
-                    <tr key={t.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm">{new Date(t.date).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                          {t.type === 'receipt' ? '收款' : '付款'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>
-                          {t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">{paymentMethodMap[t.payment_method] || t.payment_method}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {t.project_id ? <Link to={`/projects/${t.project_id}`} className="text-blue-600 hover:underline">{t.projects?.name}</Link> : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        {t.supplier_id ? <Link to={`/suppliers/${t.supplier_id}`} className="text-blue-600 hover:underline">{t.suppliers?.name}</Link> : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        {t.purchase_id ? <Link to={`/purchases/${t.purchase_id}`} className="text-blue-600 hover:underline">查看</Link> : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex justify-center gap-2">
-                          <Link to={`/transactions/${t.id}`} className="text-blue-600 text-sm">查看</Link>
-                          {canEdit && <Link to={`/transactions/${t.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
-                          {user?.role === 'admin' && (
-                            <button onClick={() => handleDelete(t.id)} className="text-red-600 text-sm">删除</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-          {totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-6">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 border rounded">
-                上一页
-              </button>
-              <span>
-                第 {page} / {totalPages} 页
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1 border rounded"
-              >
-                下一页
-              </button>
-            </div>
-          )}
+          {totalPages > 1 && (<div className="flex justify-center gap-2 mt-6"><button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 border rounded">上一页</button><span>第 {page} / {totalPages} 页</span><button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1 border rounded">下一页</button></div>)}
         </>
       )}
 
-      <ImportModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onSuccess={() => {
-          loadTransactions();
-          setShowImportModal(false);
-        }}
-        module="transactions"
-        moduleName="收付款"
-      />
+      <ImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} onSuccess={() => { loadTransactions(); setShowImportModal(false); }} module="transactions" moduleName="收付款" />
     </div>
   );
 }
