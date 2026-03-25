@@ -75,7 +75,7 @@ export default function InvoiceDetailPage() {
   };
 
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
-  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', cancelled: '作废' };
+  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款',cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
 
   if (loading) {
