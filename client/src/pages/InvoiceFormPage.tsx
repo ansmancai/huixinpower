@@ -112,11 +112,11 @@ const [selectedSupplierName, setSelectedSupplierName] = useState('');
         } catch (error) {
           console.error('加载发票失败', error);
           navigate('/invoices');
-        }
-      };
-      loadInvoice();
-    }
-  }, [id, isEdit, canEdit, navigate]);
+       }
+    };
+    loadInvoice();
+  }
+}, [id, isEdit, canEdit, navigate]);
 
   // PDF 解析（暂保留）
   const parsePDF = async (file: File) => {
