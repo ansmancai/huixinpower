@@ -32,7 +32,7 @@ export default function ProjectsPage() {
       
       if (keyword) {
   query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%,client.ilike.%${keyword}%`);
-}
+
       }
       if (status && status !== 'all') {
         query = query.eq('status', status);
