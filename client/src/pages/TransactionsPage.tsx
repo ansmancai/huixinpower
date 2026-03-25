@@ -25,46 +25,46 @@ export default function TransactionsPage() {
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
   const loadTransactions = async () => {
-    console.log('加载交易记录，筛选条件:', { type, startDate, endDate, keyword });
+  console.log('加载交易记录，筛选条件:', { type, startDate, endDate, keyword });
   setLoading(true);
-  // ... 其余代码
-    setLoading(true);
-    try {
-      let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
-      
-      if (keyword) {
-        query = query.or(`remark.ilike.%${keyword}%,payment_method.ilike.%${keyword}%`);
-      }
-      // 类型筛选
-      if (type && type !== 'all') {
-        query = query.eq('type', type);
-      }
-      if (startDate) {
-        query = query.gte('date', startDate);
-      }
-      if (endDate) {
-        query = query.lte('date', endDate);
-      }
-      
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
-      if (error) throw error;
-      
-      // 计算汇总（基于筛选后的数据）
-      const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
-      const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-      setSummary({ totalReceipt, totalPayment });
-      
-      setTransactions(data || []);
-      setTotal(count || 0);
-    } catch (error) {
-      console.error('加载交易记录失败', error);
-    } finally {
-      setLoading(false);
+  try {
+    let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
+    
+    if (keyword) {
+      query = query.or(`remark.ilike.%${keyword}%,payment_method.ilike.%${keyword}%`);
     }
-  };
+    // 类型筛选
+    if (type && type !== 'all') {
+      query = query.eq('type', type);
+    }
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+    
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    
+    const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
+    if (error) throw error;
+    
+    console.log('查询结果:', data?.length, '条');
+    
+    // 计算汇总（基于筛选后的数据）
+    const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
+    const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+    setSummary({ totalReceipt, totalPayment });
+    
+    setTransactions(data || []);
+    setTotal(count || 0);
+  } catch (error) {
+    console.error('加载交易记录失败', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 当 page, type, startDate, endDate 变化时重新加载
   useEffect(() => {
