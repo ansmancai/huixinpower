@@ -56,55 +56,59 @@ export default function PurchaseFormPage() {
   }, []);
 
   useEffect(() => {
-    if (isEdit && canEdit) {
-      const loadPurchase = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('purchases')
-            .select('*')
-            .eq('id', id)
-            .single();
-          if (error) throw error;
-          if (data) {
-            setFormData({
-              purchase_no: data.purchase_no || '',
-              logistics_status: data.logistics_status || 'ordered',
-              project_id: data.project_id || '',
-              supplier_id: data.supplier_id || '',
-              purchase_date: data.purchase_date || '',
-              amount: data.amount || '',
-              content: data.content || '',
-              remark: data.remark || '',
-            });
-            if (data.project_id) {
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', data.project_id)
-    .single();
-  if (project) {
-    setProjectOptions([{ id: project.id, name: project.name }]);
-  }
-}
-if (data.supplier_id) {
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('id, name')
-    .eq('id', data.supplier_id)
-    .single();
-  if (supplier) {
-    setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
-  }
-}
+  if (isEdit && canEdit) {
+    const loadPurchase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('purchases')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (error) throw error;
+        if (data) {
+          setFormData({
+            purchase_no: data.purchase_no || '',
+            logistics_status: data.logistics_status || 'ordered',
+            project_id: data.project_id || '',
+            supplier_id: data.supplier_id || '',
+            purchase_date: data.purchase_date || '',
+            amount: data.amount || '',
+            content: data.content || '',
+            remark: data.remark || '',
+          });
+          
+          if (data.project_id) {
+            const { data: project } = await supabase
+              .from('projects')
+              .select('id, name')
+              .eq('id', data.project_id)
+              .single();
+            if (project) {
+              setProjectOptions([{ id: project.id, name: project.name }]);
+              setSelectedProjectName(project.name);
+            }
           }
-        } catch (error) {
-          console.error('加载采购单失败', error);
-          navigate('/purchases');
+          
+          if (data.supplier_id) {
+            const { data: supplier } = await supabase
+              .from('suppliers')
+              .select('id, name')
+              .eq('id', data.supplier_id)
+              .single();
+            if (supplier) {
+              setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+              setSelectedSupplierName(supplier.name);
+            }
+          }
         }
-      };
-      loadPurchase();
-    }
-  }, [id, isEdit, canEdit, navigate]);
+      } catch (error) {
+        console.error('加载采购单失败', error);
+        navigate('/purchases');
+      }
+    };
+    loadPurchase();
+  }
+}, [id, isEdit, canEdit, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
