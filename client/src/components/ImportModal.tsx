@@ -10,7 +10,7 @@ interface ImportModalProps {
   moduleName: string;
 }
 
-// 状态映射（同上，省略重复代码，保持之前的内容）
+// 状态映射
 const statusMap: Record<string, string> = {
   '进行中': 'ongoing', '已完成': 'completed', '未收齐': 'pending_payment', 
   '已暂停': 'suspended', '规划中': 'planning'
@@ -35,7 +35,7 @@ const invoiceStatusMap: Record<string, string> = {
   '未付款': 'unpaid', '已付款': 'paid', '作废': 'cancelled'
 };
 
-// 字段映射配置（同上，省略重复）
+// 字段映射配置
 const fieldMappings: Record<string, { label: string; key: string; required?: boolean; type?: string; transform?: (v: string) => string }[]> = {
   projects: [
     { label: '项目名称', key: 'name', required: true },
@@ -139,20 +139,17 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
       return;
     }
     
-    // ========== 批量查询所有需要的数据 ==========
-    // 1. 获取所有项目（用于关联）
+    // 批量查询所有需要的数据
     const { data: allProjects } = await supabase.from('projects').select('id, name');
     const projectMap = new Map(allProjects?.map(p => [p.name, p.id]) || []);
     
-    // 2. 获取所有供应商
     const { data: allSuppliers } = await supabase.from('suppliers').select('id, name');
     const supplierMap = new Map(allSuppliers?.map(s => [s.name, s.id]) || []);
     
-    // 3. 获取所有采购（按采购单号）
     const { data: allPurchases } = await supabase.from('purchases').select('id, purchase_no');
     const purchaseByNoMap = new Map(allPurchases?.map(p => [p.purchase_no, p.id]) || []);
     
-    // 4. 获取已存在的唯一值（用于检查重复）
+    // 获取已存在的唯一值
     let existingCodes = new Set<string>();
     if (module === 'projects') {
       const { data } = await supabase.from('projects').select('code');
@@ -168,7 +165,6 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
       existingCodes = new Set(data?.map(c => c.invoice_no) || []);
     }
     
-    // ========== 逐行校验（在内存中匹配） ==========
     const errorList: { row: number; errors: string[] }[] = [];
     const validList: any[] = [];
     
@@ -186,7 +182,6 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         }
         
         if (value && value !== '') {
-          // 类型转换
           if (field.type === 'number') {
             value = parseFloat(String(value).replace(/,/g, ''));
             if (isNaN(value)) {
@@ -201,7 +196,6 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
             }
           }
           
-          // 转换中文值
           if (field.transform) {
             const transformed = field.transform(value);
             if (transformed) {
@@ -216,7 +210,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         newRow[field.key] = value || null;
       }
       
-      // 检查唯一性（用内存中的 Set）
+      // 唯一性检查
       if (module === 'projects' && newRow.code && existingCodes.has(newRow.code)) {
         rowErrors.push(`项目编号 "${newRow.code}" 已存在`);
       }
@@ -230,8 +224,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         rowErrors.push(`发票号码 "${newRow.invoice_no}" 已存在`);
       }
       
-      // 检查关联项目（用内存中的 Map）
-      if (newRow.project_name) {
+      // 关联项目（精确匹配）
+      if (newRow.project_name && newRow.project_name.trim() !== '') {
         const projectId = projectMap.get(newRow.project_name);
         if (!projectId) {
           rowErrors.push(`所属项目 "${newRow.project_name}" 不存在`);
@@ -241,8 +235,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         delete newRow.project_name;
       }
       
-      // 检查关联供应商（用内存中的 Map）
-      if (newRow.supplier_name) {
+      // 关联供应商（精确匹配）
+      if (newRow.supplier_name && newRow.supplier_name.trim() !== '') {
         const supplierId = supplierMap.get(newRow.supplier_name);
         if (!supplierId) {
           rowErrors.push(`供应商 "${newRow.supplier_name}" 不存在`);
@@ -252,14 +246,17 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         delete newRow.supplier_name;
       }
       
-      // 检查关联采购（用内存中的 Map）
-      if (newRow.purchase_no) {
+      // 关联采购（精确匹配采购单号，空值不处理）
+      if (newRow.purchase_no && newRow.purchase_no.trim() !== '') {
         const purchaseId = purchaseByNoMap.get(newRow.purchase_no);
         if (!purchaseId) {
-          rowErrors.push(`采购单号 "${newRow.purchase_no}" 不存在`);
+          rowErrors.push(`采购单号 "${newRow.purchase_no}" 不存在，请填写正确的采购单号`);
         } else {
           newRow.purchase_id = purchaseId;
         }
+        delete newRow.purchase_no;
+      } else if (newRow.purchase_no === '' || newRow.purchase_no === null) {
+        // 空值：不关联任何采购
         delete newRow.purchase_no;
       }
       
@@ -361,7 +358,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
             <p className="text-xs text-gray-500 mt-1">
               必填字段：{requiredFields || '无'}
               <br />
-              关联字段请填写名称（如：所属项目填项目名称），系统会自动匹配
+              关联字段请填写精确名称（如：采购单号填完整单号），空值表示不关联
             </p>
           </div>
           
