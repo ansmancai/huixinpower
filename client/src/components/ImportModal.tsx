@@ -10,7 +10,7 @@ interface ImportModalProps {
   moduleName: string;
 }
 
-// 状态映射
+// 状态映射（同上，省略重复代码，保持之前的内容）
 const statusMap: Record<string, string> = {
   '进行中': 'ongoing', '已完成': 'completed', '未收齐': 'pending_payment', 
   '已暂停': 'suspended', '规划中': 'planning'
@@ -35,7 +35,7 @@ const invoiceStatusMap: Record<string, string> = {
   '未付款': 'unpaid', '已付款': 'paid', '作废': 'cancelled'
 };
 
-// 字段映射配置
+// 字段映射配置（同上，省略重复）
 const fieldMappings: Record<string, { label: string; key: string; required?: boolean; type?: string; transform?: (v: string) => string }[]> = {
   projects: [
     { label: '项目名称', key: 'name', required: true },
@@ -96,7 +96,6 @@ const fieldMappings: Record<string, { label: string; key: string; required?: boo
   ],
 };
 
-// 获取模板数据
 const getTemplateData = (module: string) => {
   const fields = fieldMappings[module];
   if (!fields) return [];
@@ -140,11 +139,21 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
       return;
     }
     
-    const errorList: { row: number; errors: string[] }[] = [];
-    const validList: any[] = [];
+    // ========== 批量查询所有需要的数据 ==========
+    // 1. 获取所有项目（用于关联）
+    const { data: allProjects } = await supabase.from('projects').select('id, name');
+    const projectMap = new Map(allProjects?.map(p => [p.name, p.id]) || []);
     
-    // 获取已存在的唯一值（用于检查重复）
-    let existingCodes: Set<string> = new Set();
+    // 2. 获取所有供应商
+    const { data: allSuppliers } = await supabase.from('suppliers').select('id, name');
+    const supplierMap = new Map(allSuppliers?.map(s => [s.name, s.id]) || []);
+    
+    // 3. 获取所有采购（按采购单号）
+    const { data: allPurchases } = await supabase.from('purchases').select('id, purchase_no');
+    const purchaseByNoMap = new Map(allPurchases?.map(p => [p.purchase_no, p.id]) || []);
+    
+    // 4. 获取已存在的唯一值（用于检查重复）
+    let existingCodes = new Set<string>();
     if (module === 'projects') {
       const { data } = await supabase.from('projects').select('code');
       existingCodes = new Set(data?.map(c => c.code) || []);
@@ -158,6 +167,10 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
       const { data } = await supabase.from('invoices').select('invoice_no');
       existingCodes = new Set(data?.map(c => c.invoice_no) || []);
     }
+    
+    // ========== 逐行校验（在内存中匹配） ==========
+    const errorList: { row: number; errors: string[] }[] = [];
+    const validList: any[] = [];
     
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -203,7 +216,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         newRow[field.key] = value || null;
       }
       
-      // 检查唯一性
+      // 检查唯一性（用内存中的 Set）
       if (module === 'projects' && newRow.code && existingCodes.has(newRow.code)) {
         rowErrors.push(`项目编号 "${newRow.code}" 已存在`);
       }
@@ -217,33 +230,35 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
         rowErrors.push(`发票号码 "${newRow.invoice_no}" 已存在`);
       }
       
-      // 检查关联字段是否存在
+      // 检查关联项目（用内存中的 Map）
       if (newRow.project_name) {
-        const { data } = await supabase.from('projects').select('id').eq('name', newRow.project_name);
-        if (!data || data.length === 0) {
+        const projectId = projectMap.get(newRow.project_name);
+        if (!projectId) {
           rowErrors.push(`所属项目 "${newRow.project_name}" 不存在`);
         } else {
-          newRow.project_id = data[0].id;
+          newRow.project_id = projectId;
         }
         delete newRow.project_name;
       }
       
+      // 检查关联供应商（用内存中的 Map）
       if (newRow.supplier_name) {
-        const { data } = await supabase.from('suppliers').select('id').eq('name', newRow.supplier_name);
-        if (!data || data.length === 0) {
+        const supplierId = supplierMap.get(newRow.supplier_name);
+        if (!supplierId) {
           rowErrors.push(`供应商 "${newRow.supplier_name}" 不存在`);
         } else {
-          newRow.supplier_id = data[0].id;
+          newRow.supplier_id = supplierId;
         }
         delete newRow.supplier_name;
       }
       
+      // 检查关联采购（用内存中的 Map）
       if (newRow.purchase_no) {
-        const { data } = await supabase.from('purchases').select('id').eq('purchase_no', newRow.purchase_no);
-        if (!data || data.length === 0) {
+        const purchaseId = purchaseByNoMap.get(newRow.purchase_no);
+        if (!purchaseId) {
           rowErrors.push(`采购单号 "${newRow.purchase_no}" 不存在`);
         } else {
-          newRow.purchase_id = data[0].id;
+          newRow.purchase_id = purchaseId;
         }
         delete newRow.purchase_no;
       }
@@ -297,9 +312,6 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        delete insertData.project_name;
-        delete insertData.supplier_name;
-        delete insertData.purchase_no;
         
         const { error } = await supabase.from(module).insert([insertData]);
         if (error) throw error;
