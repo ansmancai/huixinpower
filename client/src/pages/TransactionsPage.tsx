@@ -95,16 +95,7 @@ export default function TransactionsPage() {
     other: '其他',
   };
 
-  const importColumns = [
-    { key: 'date', label: '日期', required: true },
-    { key: 'type', label: '类型', required: true },
-    { key: 'amount', label: '金额', required: true },
-    { key: 'payment_method', label: '支付方式', required: false },
-    { key: 'project_name', label: '关联项目', required: false },
-    { key: 'supplier_name', label: '关联供应商', required: false },
-    { key: 'purchase_no', label: '关联采购', required: false },
-    { key: 'remark', label: '备注', required: false },
-  ];
+  
 
   return (
     <div>
@@ -234,44 +225,8 @@ export default function TransactionsPage() {
         onSuccess={() => { loadTransactions(); setShowImportModal(false); }}
         module="transactions"
         moduleName="收付款"
-        columns={importColumns}
-        transformRow={async (row) => {
-          // 转换类型
-          if (row.type === '收款') row.type = 'receipt';
-          if (row.type === '付款') row.type = 'payment';
-          // 转换支付方式
-          const methodMap: Record<string, string> = {
-            '银行转账': 'bank', '现金': 'cash', '微信': 'wechat', '支付宝': 'alipay', '汇票': 'draft', '支票': 'check', '其他': 'other'
-          };
-          if (row.payment_method && methodMap[row.payment_method]) {
-            row.payment_method = methodMap[row.payment_method];
-          }
-          // 转换金额（如果金额是负数，自动设为付款类型）
-          if (parseFloat(row.amount) < 0) {
-            row.amount = Math.abs(parseFloat(row.amount)).toString();
-            row.type = 'payment';
-          }
-          // 关联项目
-          if (row.project_name) {
-            const { data } = await supabase.from('projects').select('id').eq('name', row.project_name).maybeSingle();
-            if (data) row.project_id = data.id;
-            delete row.project_name;
-          }
-          // 关联供应商
-          if (row.supplier_name) {
-            const { data } = await supabase.from('suppliers').select('id').eq('name', row.supplier_name).maybeSingle();
-            if (data) row.supplier_id = data.id;
-            delete row.supplier_name;
-          }
-          // 关联采购
-          if (row.purchase_no) {
-            const { data } = await supabase.from('purchases').select('id').eq('purchase_no', row.purchase_no).maybeSingle();
-            if (data) row.purchase_id = data.id;
-            delete row.purchase_no;
-          }
-          return row;
-        }}
-      />
+       
+ />
     </div>
   );
 }

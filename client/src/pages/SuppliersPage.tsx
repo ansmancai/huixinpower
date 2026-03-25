@@ -127,18 +127,7 @@ export default function SuppliersPage() {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
   };
 
-  const importColumns = [
-    { key: 'code', label: '供应商编号', required: true },
-    { key: 'name', label: '供应商名称', required: true },
-    { key: 'category', label: '类别', required: false },
-    { key: 'contact_person', label: '联系人', required: false },
-    { key: 'phone', label: '联系电话', required: false },
-    { key: 'address', label: '地址', required: false },
-    { key: 'bank', label: '开户行', required: false },
-    { key: 'account', label: '账号', required: false },
-    { key: 'rating', label: '评级', required: false },
-    { key: 'remark', label: '备注', required: false },
-  ];
+  
 
   return (
     <div>
@@ -275,8 +264,7 @@ export default function SuppliersPage() {
   }}
   module="Suppliers"
   moduleName="供应商"
-/>
-      />
+ />
     </div>
   );
 }

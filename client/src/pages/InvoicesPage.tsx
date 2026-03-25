@@ -199,33 +199,7 @@ export default function InvoicesPage() {
         onSuccess={() => { loadInvoices(); setShowImportModal(false); }}
         module="invoices"
         moduleName="发票"
-        columns={importColumns}
-        transformRow={async (row) => {
-          if (row.type === '进项') row.type = 'input';
-          if (row.type === '销项') row.type = 'output';
-          if (row.status === '未付款') row.status = 'unpaid';
-          if (row.status === '已付款') row.status = 'paid';
-          if (row.status === '作废') row.status = 'cancelled';
-          if (row.project_name) {
-            const { data } = await supabase.from('projects').select('id').eq('name', row.project_name).maybeSingle();
-            if (data) row.project_id = data.id;
-            delete row.project_name;
-          }
-          if (row.supplier_name) {
-            const { data } = await supabase.from('suppliers').select('id').eq('name', row.supplier_name).maybeSingle();
-            if (data) row.supplier_id = data.id;
-            delete row.supplier_name;
-          }
-          if (row.purchase_no) {
-            const { data } = await supabase.from('purchases').select('id').eq('purchase_no', row.purchase_no).maybeSingle();
-            if (data) row.purchase_id = data.id;
-            delete row.purchase_no;
-          }
-          if (row.tax_amount && row.amount && !row.total_amount) {
-            row.total_amount = parseFloat(row.amount) + parseFloat(row.tax_amount);
-          }
-          return row;
-        }}
+        
       />
     </div>
   );

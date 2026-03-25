@@ -160,16 +160,7 @@ export default function PurchasesPage() {
     return { text: '未收票', color: 'bg-red-100 text-red-800' };
   };
 
-  const importColumns = [
-    { key: 'purchase_no', label: '采购单号', required: true },
-    { key: 'logistics_status', label: '物流状态', required: false },
-    { key: 'project_name', label: '所属项目', required: false },
-    { key: 'supplier_name', label: '供应商', required: false },
-    { key: 'purchase_date', label: '采购日期', required: true },
-    { key: 'amount', label: '采购金额', required: true },
-    { key: 'content', label: '采购内容', required: true },
-    { key: 'remark', label: '备注', required: false },
-  ];
+  
 
   return (
     <div>
@@ -271,28 +262,7 @@ export default function PurchasesPage() {
         onSuccess={() => { loadPurchases(); setShowImportModal(false); }}
         module="purchases"
         moduleName="采购"
-        columns={importColumns}
-        transformRow={async (row) => {
-          // 转换物流状态
-          const statusMap: Record<string, string> = { '已到货': 'arrived', '已下单': 'ordered', '待发货': 'pending' };
-          if (row.logistics_status && statusMap[row.logistics_status]) {
-            row.logistics_status = statusMap[row.logistics_status];
-          }
-          // 转换项目名称到 ID
-          if (row.project_name) {
-            const { data } = await supabase.from('projects').select('id').eq('name', row.project_name).maybeSingle();
-            if (data) row.project_id = data.id;
-            delete row.project_name;
-          }
-          // 转换供应商名称到 ID
-          if (row.supplier_name) {
-            const { data } = await supabase.from('suppliers').select('id').eq('name', row.supplier_name).maybeSingle();
-            if (data) row.supplier_id = data.id;
-            delete row.supplier_name;
-          }
-          return row;
-        }}
-      />
+  />
     </div>
   );
 }

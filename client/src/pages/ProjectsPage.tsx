@@ -120,18 +120,7 @@ export default function ProjectsPage() {
   };
 
   // 导入列配置
-  const importColumns = [
-    { key: 'name', label: '项目名称', required: true },
-    { key: 'code', label: '项目编号', required: true },
-    { key: 'status', label: '项目状态', required: false },
-    { key: 'client', label: '甲方', required: false },
-    { key: 'contractor', label: '乙方', required: false },
-    { key: 'contract_no', label: '合同编号', required: false },
-    { key: 'contract_amount', label: '合同金额', required: false },
-    { key: 'start_date', label: '开工日期', required: false },
-    { key: 'end_date', label: '完工日期', required: false },
-    { key: 'remark', label: '备注', required: false },
-  ];
+  
 
   return (
     <div>
@@ -258,7 +247,7 @@ export default function ProjectsPage() {
   }}
   module="projects"
   moduleName="项目"
-/>
+ />
     </div>
   );
 }
