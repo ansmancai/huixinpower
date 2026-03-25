@@ -26,6 +26,9 @@ export default function TransactionFormPage() {
   // 用于显示已选中的名称
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const [projectOptions, setProjectOptions] = useState<any[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
+  const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -105,22 +108,40 @@ export default function TransactionFormPage() {
             
             // 加载选中的项目名称和供应商名称
             if (data.project_id) {
-              const { data: project } = await supabase
-                .from('projects')
-                .select('name')
-                .eq('id', data.project_id)
-                .single();
-              if (project) setSelectedProjectName(project.name);
-            }
-            if (data.supplier_id) {
-              const { data: supplier } = await supabase
-                .from('suppliers')
-                .select('name')
-                .eq('id', data.supplier_id)
-                .single();
-              if (supplier) setSelectedSupplierName(supplier.name);
-            }
-          }
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('id', data.project_id)
+    .single();
+  if (project) {
+    setProjectOptions([{ id: project.id, name: project.name }]);
+    setSelectedProjectName(project.name);
+  }
+}
+if (data.supplier_id) {
+  const { data: supplier } = await supabase
+    .from('suppliers')
+    .select('id, name')
+    .eq('id', data.supplier_id)
+    .single();
+  if (supplier) {
+    setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+    setSelectedSupplierName(supplier.name);
+  }
+}
+if (data.purchase_id) {
+  const { data: purchase } = await supabase
+    .from('purchases')
+    .select('id, purchase_no, content, amount')
+    .eq('id', data.purchase_id)
+    .single();
+  if (purchase) {
+    setPurchaseOptions([{
+      id: purchase.id,
+      name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+    }]);
+  }
+}
         } catch (error) {
           console.error('加载交易记录失败', error);
           navigate('/transactions');
@@ -263,6 +284,7 @@ export default function TransactionFormPage() {
             <label className="block text-sm font-medium mb-1">关联项目</label>
             <SearchSelect
               value={formData.project_id}
+              initialOptions={projectOptions}
               onChange={(val) => {
                 setFormData({ ...formData, project_id: val, purchase_id: '' });
                 const proj = projects.find(p => p.id === val);
@@ -280,6 +302,7 @@ export default function TransactionFormPage() {
             <label className="block text-sm font-medium mb-1">关联供应商</label>
             <SearchSelect
               value={formData.supplier_id}
+              initialOptions={supplierOptions}
               onChange={(val) => {
                 setFormData({ ...formData, supplier_id: val, purchase_id: '' });
                 const sup = suppliers.find(s => s.id === val);
@@ -299,6 +322,7 @@ export default function TransactionFormPage() {
               matchingPurchases.length > 0 ? (
                 <select
                   value={formData.purchase_id}
+                  initialOptions={purchaseOptions}
                   onChange={(e) => setFormData({ ...formData, purchase_id: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >

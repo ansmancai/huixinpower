@@ -12,6 +12,9 @@ export default function PurchaseFormPage() {
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [projectOptions, setProjectOptions] = useState<any[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
+ 
   const [formData, setFormData] = useState({
     purchase_no: '',
     logistics_status: 'ordered',
@@ -73,6 +76,26 @@ export default function PurchaseFormPage() {
               content: data.content || '',
               remark: data.remark || '',
             });
+            if (data.project_id) {
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('id', data.project_id)
+    .single();
+  if (project) {
+    setProjectOptions([{ id: project.id, name: project.name }]);
+  }
+}
+if (data.supplier_id) {
+  const { data: supplier } = await supabase
+    .from('suppliers')
+    .select('id, name')
+    .eq('id', data.supplier_id)
+    .single();
+  if (supplier) {
+    setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+  }
+}
           }
         } catch (error) {
           console.error('加载采购单失败', error);

@@ -29,6 +29,8 @@ export default function InvoiceFormPage() {
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
+  const [projectOptions, setProjectOptions] = useState<any[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -94,42 +96,50 @@ export default function InvoiceFormPage() {
               status: data.status || 'unpaid',
               remark: data.remark || '',
             });
+           
+
+// 加载项目选项
+if (data.project_id) {
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id, name, code')
+    .eq('id', data.project_id)
+    .single();
+  if (project) {
+    setProjectOptions([{ id: project.id, name: project.name, code: project.code }]);
+    setSelectedProjectName(project.name);
+  }
+}
+
+// 加载供应商选项
+if (data.supplier_id) {
+  const { data: supplier } = await supabase
+    .from('suppliers')
+    .select('id, name, code')
+    .eq('id', data.supplier_id)
+    .single();
+  if (supplier) {
+    setSupplierOptions([{ id: supplier.id, name: supplier.name, code: supplier.code }]);
+    setSelectedSupplierName(supplier.name);
+  }
+}
+
+// 加载采购选项
+if (data.purchase_id) {
+  const { data: purchase } = await supabase
+    .from('purchases')
+    .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
+    .eq('id', data.purchase_id)
+    .single();
+  if (purchase) {
+    setPurchaseOptions([{
+      id: purchase.id,
+      name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+      supplier_name: purchase.suppliers?.name || '',
+      supplier_id: purchase.supplier_id || '',
+      amount: purchase.amount,
+    }]);
             
-            // 加载项目名称
-            if (data.project_id) {
-              const { data: project } = await supabase
-                .from('projects')
-                .select('name')
-                .eq('id', data.project_id)
-                .single();
-              if (project) setSelectedProjectName(project.name);
-            }
-            
-            // 加载供应商名称
-            if (data.supplier_id) {
-              const { data: supplier } = await supabase
-                .from('suppliers')
-                .select('name')
-                .eq('id', data.supplier_id)
-                .single();
-              if (supplier) setSelectedSupplierName(supplier.name);
-            }
-            
-            // 加载关联采购信息
-            if (data.purchase_id) {
-              const { data: purchase } = await supabase
-                .from('purchases')
-                .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
-                .eq('id', data.purchase_id)
-                .single();
-              if (purchase) {
-                setPurchaseOptions([{
-                  id: purchase.id,
-                  name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
-                  supplier_name: purchase.suppliers?.name || '',
-                  supplier_id: purchase.supplier_id || '',
-                  amount: purchase.amount,
-                }]);
               }
             }
           }
@@ -398,6 +408,7 @@ export default function InvoiceFormPage() {
             <label className="block text-sm font-medium mb-1">所属项目</label>
             <SearchSelect
               value={formData.project_id}
+              initialOptions={projectOptions}
               onChange={(val) => {
                 setFormData({ ...formData, project_id: val, purchase_id: '', supplier_name: '', supplier_id: '' });
                 setPurchaseOptions([]);
@@ -416,6 +427,7 @@ export default function InvoiceFormPage() {
             <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
             <SearchSelect
               value={formData.purchase_id}
+              initialOptions={purchaseOptions}
               onChange={(val, option: any) => {
                 setFormData({
                   ...formData,
@@ -458,6 +470,7 @@ export default function InvoiceFormPage() {
             <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
             <SearchSelect
               value={formData.supplier_id}
+              initialOptions={supplierOptions}
               onChange={(val, option: any) => {
                 if (option) {
                   setFormData({ ...formData, supplier_id: val, supplier_name: option.name });

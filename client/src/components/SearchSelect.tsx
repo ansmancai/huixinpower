@@ -15,7 +15,8 @@ interface SearchSelectProps {
   className?: string;
   disabled?: boolean;
   required?: boolean;
-  displayName?: string;  // 👈 新增：用于显示已选中的名称
+  displayName?: string;
+  initialOptions?: Option[];  // 👈 新增：初始选项列表
 }
 
 export default function SearchSelect({
@@ -26,10 +27,11 @@ export default function SearchSelect({
   className = '',
   disabled = false,
   required = false,
-  displayName = '',  // 👈 新增
+  displayName = '',
+  initialOptions = [],  // 👈 新增
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [options, setOptions] = useState<Option[]>([]);
+  const [options, setOptions] = useState<Option[]>(initialOptions);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState(displayName);
@@ -44,6 +46,18 @@ export default function SearchSelect({
       setSelectedLabel('');
     }
   }, [displayName, value]);
+
+  // 当 initialOptions 变化时更新
+  useEffect(() => {
+    if (initialOptions.length > 0) {
+      setOptions(initialOptions);
+      // 如果有 value，尝试从 initialOptions 中找名称
+      const found = initialOptions.find(opt => opt.id === value);
+      if (found && !displayName) {
+        setSelectedLabel(found.name);
+      }
+    }
+  }, [initialOptions, value, displayName]);
 
   const loadOptions = async (keyword: string) => {
     setLoading(true);
