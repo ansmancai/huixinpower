@@ -5,16 +5,6 @@ import { supabase } from '../api/client';
 import ExportButton from '../components/ExportButton';
 import ImportModal from '../components/ImportModal';
 
-// 供应商搜索函数（用于导入时的关联转换）
-async function searchSuppliers(keyword: string) {
-  const { data } = await supabase
-    .from('suppliers')
-    .select('id, name, code')
-    .ilike('name', `%${keyword}%`)
-    .limit(10);
-  return data || [];
-}
-
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -27,6 +17,13 @@ export default function ProjectsPage() {
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
   const canExport = user?.role === 'admin' || user?.role === 'finance';
+
+  // 自动计算项目状态
+  const getAutoStatus = (contractAmount: number, receivedAmount: number) => {
+    if (receivedAmount >= contractAmount) return 'completed';
+    if (receivedAmount > 0) return 'pending_payment';
+    return 'ongoing';
+  };
 
   const loadProjects = async () => {
     setLoading(true);
@@ -43,7 +40,7 @@ export default function ProjectsPage() {
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       
-      // 获取关联的收付款和发票数据用于计算已收款/已开票
+      // 获取关联的收付款和发票数据
       const projectIds = data?.map(p => p.id) || [];
       if (projectIds.length > 0) {
         const { data: transactions } = await supabase
@@ -70,8 +67,17 @@ export default function ProjectsPage() {
         });
         
         data?.forEach(p => {
-          p.receivedAmount = receiptMap[p.id] || 0;
-          p.invoicedAmount = invoiceMap[p.id] || 0;
+          const contractAmount = parseFloat(p.contract_amount || '0');
+          const received = receiptMap[p.id] || 0;
+          const invoiced = invoiceMap[p.id] || 0;
+          p.receivedAmount = received;
+          p.invoicedAmount = invoiced;
+          // 自动计算状态（如果用户没有手动设置）
+          if (!p.status || p.status === '' || p.status === 'manual') {
+            p.autoStatus = getAutoStatus(contractAmount, received);
+          } else {
+            p.autoStatus = p.status;
+          }
         });
       }
       
@@ -99,8 +105,7 @@ export default function ProjectsPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`确定要删除项目 "${name}" 吗？`)) return;
     try {
-      const { error } = await supabase.from('projects').delete().eq('id', id);
-      if (error) throw error;
+      await supabase.from('projects').delete().eq('id', id);
       loadProjects();
     } catch (error: any) {
       alert(error.message);
@@ -119,49 +124,33 @@ export default function ProjectsPage() {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
   };
 
-  // 导入列配置
-  
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">项目管理</h1>
         <div className="flex gap-2">
-          {canExport && (
-            <ExportButton module="projects" moduleName="项目" filter={{ status: status !== 'all' ? status : undefined }} />
-          )}
+          {canExport && <ExportButton module="projects" moduleName="项目" filter={{ status: status !== 'all' ? status : undefined }} />}
           {canEdit && (
             <>
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                📥 导入数据
-              </button>
-              <button
-                onClick={() => navigate('/projects/new')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                + 新建项目
-              </button>
+              <button onClick={() => setShowImportModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">📥 导入数据</button>
+              <button onClick={() => navigate('/projects/new')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">+ 新建项目</button>
             </>
           )}
         </div>
       </div>
 
-      {/* 筛选栏 */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
         <input
           type="text"
           placeholder="搜索项目名称、项目编号、甲方..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg"
+          className="px-3 py-2 border rounded-lg"
         >
           <option value="all">全部状态</option>
           <option value="ongoing">进行中</option>
@@ -196,6 +185,7 @@ export default function ProjectsPage() {
                 const contractAmount = parseFloat(project.contract_amount || '0');
                 const receivedAmount = project.receivedAmount || 0;
                 const invoicedAmount = project.invoicedAmount || 0;
+                const displayStatus = project.autoStatus || project.status;
                 return (
                   <tr key={project.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">{project.code}</td>
@@ -211,19 +201,15 @@ export default function ProjectsPage() {
                     <td className="px-4 py-3 text-right text-sm text-blue-600">{formatAmount(invoicedAmount)}</td>
                     <td className="px-4 py-3 text-right text-sm text-orange-600">{formatAmount(contractAmount - invoicedAmount)}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${statusMap[project.status]?.color || 'bg-gray-100'}`}>
-                        {statusMap[project.status]?.label || project.status}
+                      <span className={`px-2 py-1 rounded-full text-xs ${statusMap[displayStatus]?.color || 'bg-gray-100'}`}>
+                        {statusMap[displayStatus]?.label || displayStatus}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex justify-center gap-2">
                         <Link to={`/projects/${project.id}`} className="text-blue-600 hover:text-blue-800 text-sm">查看</Link>
-                        {canEdit && (
-                          <Link to={`/projects/${project.id}/edit`} className="text-blue-600 hover:text-blue-800 text-sm">编辑</Link>
-                        )}
-                        {user?.role === 'admin' && (
-                          <button onClick={() => handleDelete(project.id, project.name)} className="text-red-600 hover:text-red-800 text-sm">删除</button>
-                        )}
+                        {canEdit && <Link to={`/projects/${project.id}/edit`} className="text-blue-600 hover:text-blue-800 text-sm">编辑</Link>}
+                        {user?.role === 'admin' && <button onClick={() => handleDelete(project.id, project.name)} className="text-red-600 hover:text-red-800 text-sm">删除</button>}
                       </div>
                     </td>
                   </tr>
@@ -231,23 +217,11 @@ export default function ProjectsPage() {
               })}
             </tbody>
           </table>
-          {projects.length === 0 && (
-            <div className="text-center py-8 text-gray-500">暂无项目数据</div>
-          )}
+          {projects.length === 0 && <div className="text-center py-8 text-gray-500">暂无项目数据</div>}
         </div>
       )}
 
-      {/* 导入弹窗 */}
-      <ImportModal
-  isOpen={showImportModal}
-  onClose={() => setShowImportModal(false)}
-  onSuccess={() => {
-    loadData();
-    setShowImportModal(false);
-  }}
-  module="projects"
-  moduleName="项目"
- />
+      <ImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} onSuccess={() => { loadProjects(); setShowImportModal(false); }} module="projects" moduleName="项目" />
     </div>
   );
 }
