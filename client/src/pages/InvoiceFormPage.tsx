@@ -28,9 +28,9 @@ export default function InvoiceFormPage() {
   });
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
-  const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
   const [projectOptions, setProjectOptions] = useState<any[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
+  const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -96,50 +96,52 @@ export default function InvoiceFormPage() {
               status: data.status || 'unpaid',
               remark: data.remark || '',
             });
-           
-
-// 加载项目选项
-if (data.project_id) {
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name, code')
-    .eq('id', data.project_id)
-    .single();
-  if (project) {
-    setProjectOptions([{ id: project.id, name: project.name, code: project.code }]);
-    setSelectedProjectName(project.name);
-  }
-}
-
-// 加载供应商选项
-if (data.supplier_id) {
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('id, name, code')
-    .eq('id', data.supplier_id)
-    .single();
-  if (supplier) {
-    setSupplierOptions([{ id: supplier.id, name: supplier.name, code: supplier.code }]);
-    setSelectedSupplierName(supplier.name);
-  }
-}
-
-// 加载采购选项
-if (data.purchase_id) {
-  const { data: purchase } = await supabase
-    .from('purchases')
-    .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
-    .eq('id', data.purchase_id)
-    .single();
-  if (purchase) {
-    setPurchaseOptions([{
-      id: purchase.id,
-      name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
-      supplier_name: purchase.suppliers?.name || '',
-      supplier_id: purchase.supplier_id || '',
-      amount: purchase.amount,
-    }]);
             
+            // 加载项目名称
+            if (data.project_id) {
+              const { data: project } = await supabase
+                .from('projects')
+                .select('name, client')
+                .eq('id', data.project_id)
+                .single();
+              if (project) {
+                setProjectOptions([{ id: project.id, name: project.name }]);
+                setSelectedProjectName(project.name);
+                // 销项发票：对方名称用项目甲方
+                if (data.type === 'output' && project.client) {
+                  setFormData(prev => ({ ...prev, supplier_name: project.client }));
+                }
+              }
+            }
+            
+            // 加载供应商名称（进项用）
+            if (data.supplier_id) {
+              const { data: supplier } = await supabase
+                .from('suppliers')
+                .select('name')
+                .eq('id', data.supplier_id)
+                .single();
+              if (supplier) {
+                setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+                setSelectedSupplierName(supplier.name);
+              }
+            }
+            
+            // 加载采购信息（进项用）
+            if (data.purchase_id) {
+              const { data: purchase } = await supabase
+                .from('purchases')
+                .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
+                .eq('id', data.purchase_id)
+                .single();
+              if (purchase) {
+                setPurchaseOptions([{
+                  id: purchase.id,
+                  name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+                  supplier_name: purchase.suppliers?.name || '',
+                  supplier_id: purchase.supplier_id || '',
+                  amount: purchase.amount,
+                }]);
               }
             }
           }
@@ -197,9 +199,9 @@ if (data.purchase_id) {
         total_amount: parseFloat(formData.total_amount) || 0,
         invoice_date: formData.invoice_date,
         project_id: formData.project_id || null,
-        purchase_id: formData.purchase_id || null,
+        purchase_id: formData.type === 'input' ? (formData.purchase_id || null) : null,
         supplier_name: formData.supplier_name || null,
-        supplier_id: formData.supplier_id || null,
+        supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
         status: formData.status,
         remark: formData.remark || null,
         updated_at: new Date().toISOString(),
@@ -235,13 +237,13 @@ if (data.purchase_id) {
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
-      .select('id, name, code')
+      .select('id, name, code, client')
       .ilike('name', `%${keyword}%`)
       .limit(20);
     return data || [];
   };
 
-  // 搜索供应商
+  // 搜索供应商（进项用）
   const searchSuppliers = async (keyword: string) => {
     const { data } = await supabase
       .from('suppliers')
@@ -251,7 +253,7 @@ if (data.purchase_id) {
     return data || [];
   };
 
-  // 根据项目搜索采购单
+  // 根据项目搜索采购单（进项用）
   const searchPurchasesByProject = async (projectId: string, keyword: string) => {
     if (!projectId) return [];
     let query = supabase
@@ -273,37 +275,33 @@ if (data.purchase_id) {
     })) || [];
   };
 
-  // 包装 SearchSelect 的 onSearch 函数
+  // 包装 SearchSelect 的 onSearch 函数（进项用）
   const handlePurchaseSearch = async (keyword: string) => {
-    if (!formData.project_id && !formData.purchase_id) {
-      return purchaseOptions;
-    }
-    
-    let results: any[] = [];
-    
-    if (formData.project_id) {
-      results = await searchPurchasesByProject(formData.project_id, keyword);
-    }
-    
-    // 如果是编辑且有关联采购，确保它出现在选项中
-    if (formData.purchase_id && !results.find(r => r.id === formData.purchase_id)) {
-      const { data: purchase } = await supabase
-        .from('purchases')
-        .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
-        .eq('id', formData.purchase_id)
+    if (!formData.project_id) return [];
+    return searchPurchasesByProject(formData.project_id, keyword);
+  };
+
+  // 选择项目时的处理
+  const handleProjectChange = async (projectId: string) => {
+    setFormData(prev => ({ ...prev, project_id: projectId, purchase_id: '', supplier_id: '' }));
+    setSelectedProjectName('');
+    if (projectId) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, client')
+        .eq('id', projectId)
         .single();
-      if (purchase) {
-        results.unshift({
-          id: purchase.id,
-          name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
-          supplier_name: purchase.suppliers?.name || '',
-          supplier_id: purchase.supplier_id || '',
-          amount: purchase.amount,
-        });
+      if (project) {
+        setSelectedProjectName(project.name);
+        setProjectOptions([{ id: project.id, name: project.name }]);
+        // 销项发票：自动填充对方名称为项目甲方
+        if (formData.type === 'output' && project.client) {
+          setFormData(prev => ({ ...prev, supplier_name: project.client }));
+        }
       }
+    } else {
+      setProjectOptions([]);
     }
-    
-    return results;
   };
 
   if (!canEdit) {
@@ -342,7 +340,17 @@ if (data.purchase_id) {
             <select
               required
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e) => {
+                const newType = e.target.value;
+                setFormData({
+                  ...formData,
+                  type: newType,
+                  purchase_id: '',
+                  supplier_id: '',
+                  // 销项时清空采购和供应商，进项时清空对方名称（后续会重新填）
+                  supplier_name: newType === 'input' ? '' : formData.supplier_name,
+                });
+              }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               <option value="input">进项（收到发票）</option>
@@ -405,52 +413,45 @@ if (data.purchase_id) {
           
           {/* 所属项目 */}
           <div>
-            <label className="block text-sm font-medium mb-1">所属项目</label>
+            <label className="block text-sm font-medium mb-1">所属项目 {formData.type === 'output' && '*'}</label>
             <SearchSelect
               value={formData.project_id}
-              initialOptions={projectOptions}
-              onChange={(val) => {
-                setFormData({ ...formData, project_id: val, purchase_id: '', supplier_name: '', supplier_id: '' });
-                setPurchaseOptions([]);
-              }}
+              onChange={handleProjectChange}
               onSearch={searchProjects}
               placeholder="选择项目"
               displayName={selectedProjectName}
+              initialOptions={projectOptions}
             />
             {selectedProjectName && (
               <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>
             )}
           </div>
           
-          {/* 关联采购（根据项目自动筛选） */}
-          <div>
-            <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
-            <SearchSelect
-              value={formData.purchase_id}
-              initialOptions={purchaseOptions}
-              onChange={(val, option: any) => {
-                setFormData({
-                  ...formData,
-                  purchase_id: val,
-                  supplier_name: option?.supplier_name || '',
-                  supplier_id: option?.supplier_id || '',
-                  amount: option?.amount || formData.amount,
-                });
-                if (option) {
-                  setPurchaseOptions([option]);
-                }
-              }}
-              onSearch={handlePurchaseSearch}
-              placeholder="选择采购单"
-              disabled={!formData.project_id && !formData.purchase_id}
-            />
-            {formData.project_id && !formData.purchase_id && (
-              <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商和金额</p>
-            )}
-            {!formData.project_id && formData.purchase_id && (
-              <p className="text-xs text-gray-500 mt-1">已关联采购单，可选择其他</p>
-            )}
-          </div>
+          {/* 进项：关联采购 */}
+          {formData.type === 'input' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
+              <SearchSelect
+                value={formData.purchase_id}
+                onChange={(val, option: any) => {
+                  setFormData({
+                    ...formData,
+                    purchase_id: val,
+                    supplier_name: option?.supplier_name || '',
+                    supplier_id: option?.supplier_id || '',
+                    amount: option?.amount || formData.amount,
+                  });
+                }}
+                onSearch={handlePurchaseSearch}
+                placeholder="选择采购单"
+                initialOptions={purchaseOptions}
+                disabled={!formData.project_id}
+              />
+              {formData.project_id && !formData.purchase_id && (
+                <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商和金额</p>
+              )}
+            </div>
+          )}
           
           {/* 对方名称 */}
           <div>
@@ -460,30 +461,29 @@ if (data.purchase_id) {
               required
               value={formData.supplier_name}
               onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-              placeholder="发票上的对方名称"
+              placeholder={formData.type === 'output' ? '甲方名称' : '发票上的对方名称'}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
           
-          {/* 关联供应商（可选） */}
-          <div>
-            <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
-            <SearchSelect
-              value={formData.supplier_id}
-              initialOptions={supplierOptions}
-              onChange={(val, option: any) => {
-                if (option) {
-                  setFormData({ ...formData, supplier_id: val, supplier_name: option.name });
-                }
-              }}
-              onSearch={searchSuppliers}
-              placeholder="如对方是系统供应商，可选择关联"
-              displayName={selectedSupplierName}
-            />
-            {selectedSupplierName && (
-              <p className="text-xs text-gray-500 mt-1">已关联供应商：{selectedSupplierName}</p>
-            )}
-          </div>
+          {/* 进项：关联供应商（可选） */}
+          {formData.type === 'input' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
+              <SearchSelect
+                value={formData.supplier_id}
+                onChange={(val, option: any) => {
+                  if (option) {
+                    setFormData({ ...formData, supplier_id: val, supplier_name: option.name });
+                  }
+                }}
+                onSearch={searchSuppliers}
+                placeholder="如对方是系统供应商，可选择关联"
+                displayName={selectedSupplierName}
+                initialOptions={supplierOptions}
+              />
+            </div>
+          )}
           
           <div>
             <label className="block text-sm font-medium mb-1">状态</label>
