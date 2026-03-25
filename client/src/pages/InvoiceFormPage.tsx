@@ -19,9 +19,10 @@ export default function InvoiceFormPage() {
     tax_amount: '',
     total_amount: '',
     invoice_date: '',
-    supplier_id: '',
     project_id: '',
     purchase_id: '',
+    supplier_name: '',
+    supplier_id: '',
     status: 'unpaid',
     remark: '',
   });
@@ -41,12 +42,29 @@ export default function InvoiceFormPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
-    const supplierId = params.get('supplierId');
     const purchaseId = params.get('purchaseId');
     if (projectId) setFormData(prev => ({ ...prev, project_id: projectId }));
-    if (supplierId) setFormData(prev => ({ ...prev, supplier_id: supplierId }));
-    if (purchaseId) setFormData(prev => ({ ...prev, purchase_id: purchaseId }));
+    if (purchaseId) {
+      // 如果传入了采购ID，自动加载采购信息
+      loadPurchaseInfo(purchaseId);
+    }
   }, [location]);
+
+  const loadPurchaseInfo = async (purchaseId: string) => {
+    const { data } = await supabase
+      .from('purchases')
+      .select('*, suppliers(name)')
+      .eq('id', purchaseId)
+      .single();
+    if (data) {
+      setFormData(prev => ({
+        ...prev,
+        purchase_id: data.id,
+        supplier_name: data.suppliers?.name || '',
+        amount: data.amount || '',
+      }));
+    }
+  };
 
   useEffect(() => {
     if (isEdit && canEdit) {
@@ -66,9 +84,10 @@ export default function InvoiceFormPage() {
               tax_amount: data.tax_amount || '',
               total_amount: data.total_amount || '',
               invoice_date: data.invoice_date || '',
-              supplier_id: data.supplier_id || '',
               project_id: data.project_id || '',
               purchase_id: data.purchase_id || '',
+              supplier_name: data.supplier_name || '',
+              supplier_id: data.supplier_id || '',
               status: data.status || 'unpaid',
               remark: data.remark || '',
             });
@@ -82,22 +101,12 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // 调用 EdgeOne Functions 解析 PDF
+  // PDF 解析（暂时用简单方法）
   const parsePDF = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const response = await fetch('/api/parse-invoice', {
-      method: 'POST',
-      body: formData,
-    });
-    
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error);
-    return result;
+    // 暂时返回空，后续再完善
+    return {};
   };
 
-  // 上传并解析 PDF
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -109,38 +118,12 @@ export default function InvoiceFormPage() {
     setUploading(true);
     try {
       const info = await parsePDF(file);
-      
-      // 填充表单
       if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
       if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
       if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
       if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
-      if (info.total) setFormData(prev => ({ ...prev, total_amount: info.total }));
-      
-      // 根据购买方/销售方判断发票类型
-      const sellerName = info.seller || '';
-      const buyerName = info.buyer || '';
-      if (buyerName.includes('汇信电力')) {
-        setFormData(prev => ({ ...prev, type: 'input' }));
-      } else if (sellerName.includes('汇信电力')) {
-        setFormData(prev => ({ ...prev, type: 'output' }));
-      }
-      
-      // 根据销售方名称搜索供应商
-      const targetName = sellerName || buyerName;
-      if (targetName) {
-        const { data } = await supabase
-          .from('suppliers')
-          .select('id, name')
-          .ilike('name', `%${targetName}%`)
-          .limit(1);
-        if (data && data.length > 0) {
-          setFormData(prev => ({ ...prev, supplier_id: data[0].id }));
-          alert(`已自动匹配供应商: ${data[0].name}`);
-        }
-      }
-      
-      alert('PDF 解析成功，已自动填充表单');
+      if (info.seller) setFormData(prev => ({ ...prev, supplier_name: info.seller }));
+      alert('PDF 解析完成，已自动填充表单');
     } catch (error) {
       console.error('解析 PDF 失败:', error);
       alert('解析 PDF 失败，请手动填写');
@@ -163,9 +146,10 @@ export default function InvoiceFormPage() {
         tax_amount: formData.tax_amount ? parseFloat(formData.tax_amount) : null,
         total_amount: parseFloat(formData.total_amount) || 0,
         invoice_date: formData.invoice_date,
-        supplier_id: formData.supplier_id || null,
         project_id: formData.project_id || null,
         purchase_id: formData.purchase_id || null,
+        supplier_name: formData.supplier_name || null,
+        supplier_id: formData.supplier_id || null,
         status: formData.status,
         remark: formData.remark || null,
         updated_at: new Date().toISOString(),
@@ -197,6 +181,7 @@ export default function InvoiceFormPage() {
     }
   };
 
+  // 搜索项目
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
@@ -206,6 +191,7 @@ export default function InvoiceFormPage() {
     return data || [];
   };
 
+  // 搜索供应商（用于关联）
   const searchSuppliers = async (keyword: string) => {
     const { data } = await supabase
       .from('suppliers')
@@ -215,13 +201,34 @@ export default function InvoiceFormPage() {
     return data || [];
   };
 
-  const searchPurchases = async (keyword: string) => {
-    const { data } = await supabase
+  // 根据项目搜索采购单
+  const searchPurchasesByProject = async (projectId: string, keyword: string) => {
+    if (!projectId) return [];
+    let query = supabase
       .from('purchases')
-      .select('id, purchase_no, content')
-      .ilike('purchase_no', `%${keyword}%`)
-      .limit(20);
-    return data || [];
+      .select('id, purchase_no, content, amount, suppliers(name)')
+      .eq('project_id', projectId);
+    
+    if (keyword) {
+      query = query.ilike('purchase_no', `%${keyword}%`);
+    }
+    
+    const { data } = await query.limit(20);
+    return data?.map(p => ({
+      id: p.id,
+      name: `${p.purchase_no} - ${p.content} (¥${p.amount})`,
+      supplier_name: p.suppliers?.name || '',
+      amount: p.amount,
+    })) || [];
+  };
+
+  // 包装 SearchSelect 的 onSearch 函数，使其能接收项目ID
+  const handlePurchaseSearch = async (keyword: string) => {
+    if (!formData.project_id) {
+      alert('请先选择项目');
+      return [];
+    }
+    return searchPurchasesByProject(formData.project_id, keyword);
   };
 
   if (!canEdit) {
@@ -232,7 +239,7 @@ export default function InvoiceFormPage() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
-      {/* PDF 上传区域 */}
+      {/* PDF 上传区域（暂保留，后续完善） */}
       {!isEdit && (
         <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
           <label className="block text-sm font-medium mb-2">📄 上传 PDF 发票（可选，自动识别填写）</label>
@@ -248,7 +255,7 @@ export default function InvoiceFormPage() {
             {uploading && <span className="text-blue-600">解析中...</span>}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            支持电子发票 PDF，上传后自动提取发票号码、金额、开票日期、对方名称等信息
+            支持电子发票 PDF，上传后自动提取信息（功能完善中）
           </p>
         </div>
       )}
@@ -320,33 +327,73 @@ export default function InvoiceFormPage() {
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">对方名称</label>
-            <SearchSelect
-              value={formData.supplier_id}
-              onChange={(val) => setFormData({ ...formData, supplier_id: val })}
-              onSearch={searchSuppliers}
-              placeholder="选择供应商"
-            />
-          </div>
+          
+          {/* 所属项目 */}
           <div>
             <label className="block text-sm font-medium mb-1">所属项目</label>
             <SearchSelect
               value={formData.project_id}
-              onChange={(val) => setFormData({ ...formData, project_id: val })}
+              onChange={(val) => {
+                setFormData({ ...formData, project_id: val, purchase_id: '', supplier_name: '' });
+              }}
               onSearch={searchProjects}
               placeholder="选择项目"
             />
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">关联采购</label>
+          
+          {/* 关联采购（根据项目自动筛选） */}
+          <div>
+            <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
             <SearchSelect
               value={formData.purchase_id}
-              onChange={(val) => setFormData({ ...formData, purchase_id: val })}
-              onSearch={searchPurchases}
-              placeholder="选择采购单（按采购单号搜索）"
+              onChange={(val, option: any) => {
+                setFormData({
+                  ...formData,
+                  purchase_id: val,
+                  supplier_name: option?.supplier_name || '',
+                  amount: option?.amount || formData.amount,
+                });
+              }}
+              onSearch={handlePurchaseSearch}
+              placeholder="选择采购单"
+              disabled={!formData.project_id}
+            />
+            {formData.project_id && !formData.purchase_id && (
+              <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商和金额</p>
+            )}
+            {!formData.project_id && (
+              <p className="text-xs text-gray-500 mt-1">请先选择项目</p>
+            )}
+          </div>
+          
+          {/* 对方名称（自由输入） */}
+          <div>
+            <label className="block text-sm font-medium mb-1">对方名称 *</label>
+            <input
+              type="text"
+              required
+              value={formData.supplier_name}
+              onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+              placeholder="发票上的对方名称"
+              className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
+          
+          {/* 关联供应商（可选） */}
+          <div>
+            <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
+            <SearchSelect
+              value={formData.supplier_id}
+              onChange={(val, option: any) => {
+                if (option) {
+                  setFormData({ ...formData, supplier_id: val, supplier_name: option.name });
+                }
+              }}
+              onSearch={searchSuppliers}
+              placeholder="如对方是系统供应商，可选择关联"
+            />
+          </div>
+          
           <div>
             <label className="block text-sm font-medium mb-1">状态</label>
             <select
