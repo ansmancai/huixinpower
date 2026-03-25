@@ -3,10 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// 设置 PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,12 +30,12 @@ export default function InvoiceFormPage() {
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
   // 自动计算总金额
-  // 移除自动税额计算，只计算总金额
-useEffect(() => {
-  const amount = parseFloat(formData.amount) || 0;
-  const tax = parseFloat(formData.tax_amount) || 0;
-  setFormData(prev => ({ ...prev, total_amount: (amount + tax).toString() }));
-}, [formData.amount, formData.tax_amount]);
+  useEffect(() => {
+    const amount = parseFloat(formData.amount) || 0;
+    const tax = parseFloat(formData.tax_amount) || 0;
+    const total = amount + tax;
+    setFormData(prev => ({ ...prev, total_amount: total.toString() }));
+  }, [formData.amount, formData.tax_amount]);
 
   // 从 URL 参数获取带入的数据
   useEffect(() => {
@@ -86,63 +82,19 @@ useEffect(() => {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // PDF 解析函数
-  const parsePDF = async (file: File): Promise<{ text: string }> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
-    }
-    return { text: fullText };
-  };
-
-  // 从文本提取发票信息
-  const extractInvoiceInfo = (text: string) => {
-    const info: any = {};
+  // 调用 EdgeOne Functions 解析 PDF
+  const parsePDF = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
     
-    // 发票号码
-    const invoiceNoMatch = text.match(/发票号码[：:]\s*(\d+)/);
-    if (invoiceNoMatch) info.invoice_no = invoiceNoMatch[1];
+    const response = await fetch('/api/parse-invoice', {
+      method: 'POST',
+      body: formData,
+    });
     
-    // 开票日期
-    const dateMatch = text.match(/开票日期[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)/);
-    if (dateMatch) {
-      const dateStr = dateMatch[1].replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '');
-      info.invoice_date = dateStr;
-    }
-    
-    // 金额（不含税）
-    const amountMatch = text.match(/金额[：:]\s*([\d,]+\.?\d*)/);
-    if (amountMatch) info.amount = amountMatch[1].replace(/,/g, '');
-    
-    // 税额
-    const taxMatch = text.match(/税额[：:]\s*([\d,]+\.?\d*)/);
-    if (taxMatch) info.tax_amount = taxMatch[1].replace(/,/g, '');
-    
-    // 价税合计（总金额）
-    const totalMatch = text.match(/价税合计[（(]大写[）)]|小写[：:]\s*([\d,]+\.?\d*)/);
-    if (totalMatch) info.total_amount = totalMatch[1].replace(/,/g, '');
-    
-    // 销售方名称
-    const sellerMatch = text.match(/销售方[：:].*?名称[：:]\s*([^\n\r]+)/);
-    if (sellerMatch) info.sellerName = sellerMatch[1].trim();
-    
-    // 购买方名称
-    const buyerMatch = text.match(/购买方[：:].*?名称[：:]\s*([^\n\r]+)/);
-    if (buyerMatch) info.buyerName = buyerMatch[1].trim();
-    
-    // 根据购买方/销售方判断发票类型
-    if (info.buyerName && info.buyerName.includes('汇信电力')) {
-      info.type = 'input';
-    } else if (info.sellerName && info.sellerName.includes('汇信电力')) {
-      info.type = 'output';
-    }
-    
-    return info;
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    return result;
   };
 
   // 上传并解析 PDF
@@ -156,24 +108,31 @@ useEffect(() => {
     
     setUploading(true);
     try {
-      const { text } = await parsePDF(file);
-      const info = extractInvoiceInfo(text);
+      const info = await parsePDF(file);
       
       // 填充表单
       if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
-      if (info.invoice_date) setFormData(prev => ({ ...prev, invoice_date: info.invoice_date }));
+      if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
       if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
-      if (info.tax_amount) setFormData(prev => ({ ...prev, tax_amount: info.tax_amount }));
-      if (info.total_amount) setFormData(prev => ({ ...prev, total_amount: info.total_amount }));
-      if (info.type) setFormData(prev => ({ ...prev, type: info.type }));
+      if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
+      if (info.total) setFormData(prev => ({ ...prev, total_amount: info.total }));
+      
+      // 根据购买方/销售方判断发票类型
+      const sellerName = info.seller || '';
+      const buyerName = info.buyer || '';
+      if (buyerName.includes('汇信电力')) {
+        setFormData(prev => ({ ...prev, type: 'input' }));
+      } else if (sellerName.includes('汇信电力')) {
+        setFormData(prev => ({ ...prev, type: 'output' }));
+      }
       
       // 根据销售方名称搜索供应商
-      const sellerName = info.sellerName || info.buyerName;
-      if (sellerName) {
+      const targetName = sellerName || buyerName;
+      if (targetName) {
         const { data } = await supabase
           .from('suppliers')
           .select('id, name')
-          .ilike('name', `%${sellerName}%`)
+          .ilike('name', `%${targetName}%`)
           .limit(1);
         if (data && data.length > 0) {
           setFormData(prev => ({ ...prev, supplier_id: data[0].id }));
@@ -346,7 +305,6 @@ useEffect(() => {
               step="0.01"
               required
               value={formData.total_amount}
-              onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg bg-gray-50"
               readOnly
             />
