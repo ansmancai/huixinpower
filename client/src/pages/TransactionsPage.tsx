@@ -25,6 +25,9 @@ export default function TransactionsPage() {
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
   const loadTransactions = async () => {
+    console.log('加载交易记录，筛选条件:', { type, startDate, endDate, keyword });
+  setLoading(true);
+  // ... 其余代码
     setLoading(true);
     try {
       let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
