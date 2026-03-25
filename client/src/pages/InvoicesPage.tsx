@@ -136,6 +136,7 @@ export default function InvoicesPage() {
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="px-3 py-2 border rounded-lg">
           <option value="all">全部状态</option>
           <option value="unpaid">未付款</option>
+          <option value="partial">部分付款</option> 
           <option value="paid">已付款</option>
           <option value="cancelled">作废</option>
         </select>
