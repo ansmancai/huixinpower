@@ -171,7 +171,7 @@ export default function InvoicesPage() {
                     <td className="px-4 py-3 text-sm">{i.suppliers?.name || '-'}</td>
                     <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : i.status === 'partial' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {statusMap[i.status] || i.status}
                       </span>
                     </td>
