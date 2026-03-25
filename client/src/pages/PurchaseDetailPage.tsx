@@ -297,7 +297,9 @@ export default function PurchaseDetailPage() {
                         inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {inv.status === 'paid' ? '已付款' : inv.status === 'cancelled' ? '作废' : '未付款'}
+                        {inv.status === 'paid' ? '已付款' : 
+                         inv.status === 'partial' ? '部分付款' :
+                         inv.status === 'cancelled' ? '作废' : '未付款'}
                       </span>
                     </td>
                   </tr>
