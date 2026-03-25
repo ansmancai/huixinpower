@@ -85,71 +85,72 @@ export default function TransactionFormPage() {
   }, [formData.project_id, formData.supplier_id]);
 
   useEffect(() => {
-    if (isEdit && canEdit) {
-      const loadTransaction = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('id', id)
-            .single();
-          if (error) throw error;
-          if (data) {
-            setFormData({
-              date: data.date || '',
-              type: data.type || 'payment',
-              amount: data.amount || '',
-              payment_method: data.payment_method || 'bank',
-              project_id: data.project_id || '',
-              supplier_id: data.supplier_id || '',
-              purchase_id: data.purchase_id || '',
-              remark: data.remark || '',
-            });
-            
-            // 加载选中的项目名称和供应商名称
-            if (data.project_id) {
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', data.project_id)
-    .single();
-  if (project) {
-    setProjectOptions([{ id: project.id, name: project.name }]);
-    setSelectedProjectName(project.name);
+  if (isEdit && canEdit) {
+    const loadTransaction = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (error) throw error;
+        if (data) {
+          setFormData({
+            date: data.date || '',
+            type: data.type || 'payment',
+            amount: data.amount || '',
+            payment_method: data.payment_method || 'bank',
+            project_id: data.project_id || '',
+            supplier_id: data.supplier_id || '',
+            purchase_id: data.purchase_id || '',
+            remark: data.remark || '',
+          });
+          
+          // 加载选中的项目名称和供应商名称
+          if (data.project_id) {
+            const { data: project } = await supabase
+              .from('projects')
+              .select('id, name')
+              .eq('id', data.project_id)
+              .single();
+            if (project) {
+              setProjectOptions([{ id: project.id, name: project.name }]);
+              setSelectedProjectName(project.name);
+            }
+          }
+          if (data.supplier_id) {
+            const { data: supplier } = await supabase
+              .from('suppliers')
+              .select('id, name')
+              .eq('id', data.supplier_id)
+              .single();
+            if (supplier) {
+              setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+              setSelectedSupplierName(supplier.name);
+            }
+          }
+          if (data.purchase_id) {
+            const { data: purchase } = await supabase
+              .from('purchases')
+              .select('id, purchase_no, content, amount')
+              .eq('id', data.purchase_id)
+              .single();
+            if (purchase) {
+              setPurchaseOptions([{
+                id: purchase.id,
+                name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+              }]);
+            }
+          }
+        }  // 👈 关闭 if (data)
+      } catch (error) {
+        console.error('加载交易记录失败', error);
+        navigate('/transactions');
+      }
+    };
+    loadTransaction();
   }
-}
-if (data.supplier_id) {
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('id, name')
-    .eq('id', data.supplier_id)
-    .single();
-  if (supplier) {
-    setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
-    setSelectedSupplierName(supplier.name);
-  }
-}
-if (data.purchase_id) {
-  const { data: purchase } = await supabase
-    .from('purchases')
-    .select('id, purchase_no, content, amount')
-    .eq('id', data.purchase_id)
-    .single();
-  if (purchase) {
-    setPurchaseOptions([{
-      id: purchase.id,
-      name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
-    }]);
-  }
-}
-        } catch (error) {
-          console.error('加载交易记录失败', error);
-          navigate('/transactions');
-        }
-      };
-      loadTransaction();
-    }
-  }, [id, isEdit, canEdit, navigate]);
+}, [id, isEdit, canEdit, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
