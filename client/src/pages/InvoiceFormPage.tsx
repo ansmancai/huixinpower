@@ -34,12 +34,12 @@ export default function InvoiceFormPage() {
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
   // 自动计算总金额
-  useEffect(() => {
-    const amount = parseFloat(formData.amount) || 0;
-    const tax = parseFloat(formData.tax_amount) || 0;
-    const total = amount + tax;
-    setFormData(prev => ({ ...prev, total_amount: total.toString() }));
-  }, [formData.amount, formData.tax_amount]);
+  // 移除自动税额计算，只计算总金额
+useEffect(() => {
+  const amount = parseFloat(formData.amount) || 0;
+  const tax = parseFloat(formData.tax_amount) || 0;
+  setFormData(prev => ({ ...prev, total_amount: (amount + tax).toString() }));
+}, [formData.amount, formData.tax_amount]);
 
   // 从 URL 参数获取带入的数据
   useEffect(() => {
