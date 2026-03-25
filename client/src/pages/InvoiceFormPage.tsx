@@ -244,11 +244,37 @@ const [selectedSupplierName, setSelectedSupplierName] = useState('');
 
   // 包装 SearchSelect 的 onSearch 函数
   const handlePurchaseSearch = async (keyword: string) => {
-    if (!formData.project_id) {
-      return [];
-    }
-    return searchPurchasesByProject(formData.project_id, keyword);
-  };
+  if (!formData.project_id && !formData.purchase_id) {
+    return [];
+  }
+  
+  let query = supabase
+    .from('purchases')
+    .select('id, purchase_no, content, amount, supplier_id, suppliers(name)');
+  
+  if (formData.project_id) {
+    query = query.eq('project_id', formData.project_id);
+  }
+  
+  if (formData.purchase_id && !formData.project_id) {
+    query = query.eq('id', formData.purchase_id);
+  }
+  
+  if (keyword) {
+    query = query.ilike('purchase_no', `%${keyword}%`);
+  }
+  
+  const { data } = await query.limit(20);
+  
+  // 用 as any 解决类型问题
+  return (data as any[])?.map((p: any) => ({
+    id: p.id,
+    name: `${p.purchase_no} - ${p.content} (¥${p.amount})`,
+    supplier_name: p.suppliers?.name || '',
+    supplier_id: p.supplier_id || '',
+    amount: p.amount,
+  })) || [];
+};
 
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
