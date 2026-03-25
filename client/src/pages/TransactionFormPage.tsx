@@ -23,6 +23,9 @@ export default function TransactionFormPage() {
     purchase_id: '',
     remark: '',
   });
+  // 用于显示已选中的名称
+  const [selectedProjectName, setSelectedProjectName] = useState('');
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -61,12 +64,18 @@ export default function TransactionFormPage() {
       
       const { data } = await supabase
         .from('purchases')
-        .select('id, purchase_no, content, amount')
+        .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
         .eq('project_id', formData.project_id)
         .eq('supplier_id', formData.supplier_id)
         .order('purchase_date', { ascending: false });
       
-      setMatchingPurchases(data || []);
+      setMatchingPurchases(data?.map(p => ({
+        id: p.id,
+        name: `${p.purchase_no} - ${p.content} (¥${p.amount})`,
+        supplier_name: p.suppliers?.name || '',
+        supplier_id: p.supplier_id,
+        amount: p.amount,
+      })) || []);
     };
     
     loadMatchingPurchases();
@@ -93,6 +102,24 @@ export default function TransactionFormPage() {
               purchase_id: data.purchase_id || '',
               remark: data.remark || '',
             });
+            
+            // 加载选中的项目名称和供应商名称
+            if (data.project_id) {
+              const { data: project } = await supabase
+                .from('projects')
+                .select('name')
+                .eq('id', data.project_id)
+                .single();
+              if (project) setSelectedProjectName(project.name);
+            }
+            if (data.supplier_id) {
+              const { data: supplier } = await supabase
+                .from('suppliers')
+                .select('name')
+                .eq('id', data.supplier_id)
+                .single();
+              if (supplier) setSelectedSupplierName(supplier.name);
+            }
           }
         } catch (error) {
           console.error('加载交易记录失败', error);
@@ -180,18 +207,6 @@ export default function TransactionFormPage() {
     { value: 'other', label: '其他' },
   ];
 
-  // 获取项目名称用于显示
-  const getProjectName = (id: string) => {
-    const p = projects.find(p => p.id === id);
-    return p ? p.name : '';
-  };
-
-  // 获取供应商名称用于显示
-  const getSupplierName = (id: string) => {
-    const s = suppliers.find(s => s.id === id);
-    return s ? s.name : '';
-  };
-
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
   }
@@ -248,24 +263,32 @@ export default function TransactionFormPage() {
             <label className="block text-sm font-medium mb-1">关联项目</label>
             <SearchSelect
               value={formData.project_id}
-              onChange={(val) => setFormData({ ...formData, project_id: val, purchase_id: '' })}
+              onChange={(val) => {
+                setFormData({ ...formData, project_id: val, purchase_id: '' });
+                const proj = projects.find(p => p.id === val);
+                setSelectedProjectName(proj?.name || '');
+              }}
               onSearch={searchProjects}
               placeholder="选择项目"
             />
-            {formData.project_id && (
-              <p className="text-xs text-gray-500 mt-1">已选：{getProjectName(formData.project_id)}</p>
+            {selectedProjectName && (
+              <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">关联供应商</label>
             <SearchSelect
               value={formData.supplier_id}
-              onChange={(val) => setFormData({ ...formData, supplier_id: val, purchase_id: '' })}
+              onChange={(val) => {
+                setFormData({ ...formData, supplier_id: val, purchase_id: '' });
+                const sup = suppliers.find(s => s.id === val);
+                setSelectedSupplierName(sup?.name || '');
+              }}
               onSearch={searchSuppliers}
               placeholder="选择供应商"
             />
-            {formData.supplier_id && (
-              <p className="text-xs text-gray-500 mt-1">已选：{getSupplierName(formData.supplier_id)}</p>
+            {selectedSupplierName && (
+              <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>
             )}
           </div>
           <div className="md:col-span-2">
@@ -280,7 +303,7 @@ export default function TransactionFormPage() {
                   <option value="">不关联采购</option>
                   {matchingPurchases.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.purchase_no} - {p.content} (¥{p.amount})
+                      {p.name}
                     </option>
                   ))}
                 </select>
