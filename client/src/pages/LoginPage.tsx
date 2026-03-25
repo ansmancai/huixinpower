@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { api } from '../api/client';
+import { api, logLogin } from '../api/client';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -19,6 +19,17 @@ export default function LoginPage() {
     try {
       const { token, user } = await api.auth.login(email, password);
       setAuth(token, user);
+      
+      // 获取 IP
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        await logLogin(user.id, user.name, ipData.ip, navigator.userAgent);
+      } catch (ipError) {
+        // IP 获取失败不影响登录
+        await logLogin(user.id, user.name, 'unknown', navigator.userAgent);
+      }
+      
       navigate('/');
     } catch (err: any) {
       setError(err.message);
@@ -43,9 +54,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-medium mb-2">
-              邮箱
-            </label>
+            <label className="block text-gray-700 text-sm font-medium mb-2">邮箱</label>
             <input
               type="email"
               value={email}
@@ -57,9 +66,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-medium mb-2">
-              密码
-            </label>
+            <label className="block text-gray-700 text-sm font-medium mb-2">密码</label>
             <input
               type="password"
               value={password}
@@ -81,7 +88,7 @@ export default function LoginPage() {
 
         <div className="mt-6 text-center text-sm text-gray-500">
           <p>演示账号：admin@example.com / admin123</p>
-          <p className="mt-1">角色权限：admin(管理员) / finance(财务) / boss(老板) / viewer(查看者)</p>
+          <p className="mt-1">角色权限：admin(管理员) / finance(财务) / boss(老板) / viewer(浏览人)</p>
         </div>
       </div>
     </div>

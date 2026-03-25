@@ -1,0 +1,255 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { supabase } from '../api/client';
+import SearchSelect from '../components/SearchSelect';
+
+export default function TransactionFormPage() {
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    date: '',
+    type: 'payment',
+    amount: '',
+    payment_method: 'bank',
+    project_id: '',
+    supplier_id: '',
+    purchase_id: '',
+    remark: '',
+  });
+
+  const isEdit = !!id;
+  const canEdit = user?.role === 'admin' || user?.role === 'finance';
+
+  // 从 URL 参数获取带入的数据
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    const supplierId = params.get('supplierId');
+    const purchaseId = params.get('purchaseId');
+    if (projectId) setFormData(prev => ({ ...prev, project_id: projectId }));
+    if (supplierId) setFormData(prev => ({ ...prev, supplier_id: supplierId }));
+    if (purchaseId) setFormData(prev => ({ ...prev, purchase_id: purchaseId }));
+  }, [location]);
+
+  useEffect(() => {
+    if (isEdit && canEdit) {
+      const loadTransaction = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('id', id)
+            .single();
+          if (error) throw error;
+          if (data) {
+            setFormData({
+              date: data.date || '',
+              type: data.type || 'payment',
+              amount: data.amount || '',
+              payment_method: data.payment_method || 'bank',
+              project_id: data.project_id || '',
+              supplier_id: data.supplier_id || '',
+              purchase_id: data.purchase_id || '',
+              remark: data.remark || '',
+            });
+          }
+        } catch (error) {
+          console.error('加载交易记录失败', error);
+          navigate('/transactions');
+        }
+      };
+      loadTransaction();
+    }
+  }, [id, isEdit, canEdit, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEdit) return;
+    setLoading(true);
+    
+    try {
+      let amount = parseFloat(formData.amount);
+      if (formData.type === 'payment' && amount > 0) {
+        amount = -amount;
+      }
+      
+      const submitData: any = {
+        date: formData.date,
+        type: formData.type,
+        amount: amount,
+        payment_method: formData.payment_method,
+        project_id: formData.project_id || null,
+        supplier_id: formData.supplier_id || null,
+        purchase_id: formData.purchase_id || null,
+        remark: formData.remark || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (isEdit) {
+        const { error } = await supabase
+          .from('transactions')
+          .update(submitData)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('transactions')
+          .insert([{
+            ...submitData,
+            id: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+          }]);
+        if (error) throw error;
+      }
+      
+      navigate('/transactions');
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      alert(error.message || '保存失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchProjects = async (keyword: string) => {
+    const { data } = await supabase
+      .from('projects')
+      .select('id, name, code')
+      .ilike('name', `%${keyword}%`)
+      .limit(20);
+    return data || [];
+  };
+
+  const searchSuppliers = async (keyword: string) => {
+    const { data } = await supabase
+      .from('suppliers')
+      .select('id, name, code')
+      .ilike('name', `%${keyword}%`)
+      .limit(20);
+    return data || [];
+  };
+
+  const searchPurchases = async (keyword: string) => {
+    const { data } = await supabase
+      .from('purchases')
+      .select('id, purchase_no, content')
+      .ilike('purchase_no', `%${keyword}%`)
+      .limit(20);
+    return data || [];
+  };
+
+  const paymentMethods = [
+    { value: 'bank', label: '银行转账' },
+    { value: 'cash', label: '现金' },
+    { value: 'wechat', label: '微信' },
+    { value: 'alipay', label: '支付宝' },
+    { value: 'draft', label: '汇票' },
+    { value: 'check', label: '支票' },
+    { value: 'other', label: '其他' },
+  ];
+
+  if (!canEdit) {
+    return <div className="text-center py-12 text-red-500">无权限操作</div>;
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑收付款' : '新建收付款'}</h1>
+      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">日期 *</label>
+            <input
+              type="date"
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">类型 *</label>
+            <select
+              required
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="payment">付款</option>
+              <option value="receipt">收款</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">金额 *</label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">支付方式</label>
+            <select
+              value={formData.payment_method}
+              onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              {paymentMethods.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">关联项目</label>
+            <SearchSelect
+              value={formData.project_id}
+              onChange={(val) => setFormData({ ...formData, project_id: val })}
+              onSearch={searchProjects}
+              placeholder="选择项目"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">关联供应商</label>
+            <SearchSelect
+              value={formData.supplier_id}
+              onChange={(val) => setFormData({ ...formData, supplier_id: val })}
+              onSearch={searchSuppliers}
+              placeholder="选择供应商"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">关联采购</label>
+            <SearchSelect
+              value={formData.purchase_id}
+              onChange={(val) => setFormData({ ...formData, purchase_id: val })}
+              onSearch={searchPurchases}
+              placeholder="选择采购单（按采购单号搜索）"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">备注</label>
+            <textarea
+              rows={3}
+              value={formData.remark}
+              onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 pt-4">
+          <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {loading ? '保存中...' : '保存'}
+          </button>
+          <button type="button" onClick={() => navigate('/transactions')} className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">
+            取消
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

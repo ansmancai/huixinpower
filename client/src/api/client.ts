@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { useAuthStore } from '../store/authStore';
 
-// ==================== Supabase 客户端（硬编码）====================
+// ==================== Supabase 客户端 ====================
 const supabaseUrl = 'https://sjgyvhceixyukfgplpts.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY';
 
@@ -11,6 +11,43 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 function handleError(error: any) {
   console.error('API Error:', error);
   throw new Error(error.message || '操作失败');
+}
+
+// ==================== 日志记录 ====================
+export async function logOperation(
+  action: string,
+  tableName?: string,
+  details?: any
+) {
+  try {
+    // 获取当前用户
+    const authStore = useAuthStore.getState();
+    const userId = authStore.user?.id;
+    const userName = authStore.user?.name;
+    
+    await supabase.from('operation_logs').insert({
+      user_id: userId,
+      user_name: userName,
+      action,
+      table_name: tableName,
+      details: details || {},
+    });
+  } catch (error) {
+    console.error('记录日志失败:', error);
+  }
+}
+
+export async function logLogin(userId: string, userName: string, ip?: string, userAgent?: string) {
+  try {
+    await supabase.from('login_logs').insert({
+      user_id: userId,
+      user_name: userName,
+      ip_address: ip,
+      user_agent: userAgent,
+    });
+  } catch (error) {
+    console.error('记录登录日志失败:', error);
+  }
 }
 
 // ==================== 认证 API ====================
@@ -30,7 +67,11 @@ export const authApi = {
       throw new Error('密码错误');
     }
     
-    const token = btoa(JSON.stringify({ id: data.id, email: data.email }));
+    const token = btoa(JSON.stringify({ id: data.id, email: data.email, role: data.role }));
+    
+    // 记录登录日志
+    await logLogin(data.id, data.name);
+    
     return { token, user: data };
   },
   
@@ -45,12 +86,8 @@ export const authApi = {
   },
   
   getProfile: async () => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .limit(1);
-    if (error) handleError(error);
-    return data?.[0] || null;
+    const authStore = useAuthStore.getState();
+    return authStore.user;
   },
 };
 
@@ -84,7 +121,6 @@ export const projectsApi = {
   },
   
   create: async (data: any) => {
-    // 处理空值：将空字符串转为 null，数字字段转为数字
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -109,15 +145,18 @@ export const projectsApi = {
       .select()
       .single();
     
-    if (error) {
-      console.error('Supabase 错误:', error);
-      throw new Error(`保存失败: ${error.message}`);
-    }
+    if (error) handleError(error);
+    
+    // 记录日志
+    await logOperation('insert', 'projects', { id: result.id, data: result });
+    
     return result;
   },
   
   update: async (id: string, data: any) => {
-    // 处理空值
+    // 先获取旧数据
+    const { data: oldData } = await supabase.from('projects').select('*').eq('id', id).single();
+    
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -136,17 +175,28 @@ export const projectsApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    // 记录日志
+    await logOperation('update', 'projects', { id, old: oldData, new: result });
+    
     return result;
   },
   
   delete: async (id: string) => {
+    // 先获取数据用于日志
+    const { data: oldData } = await supabase.from('projects').select('*').eq('id', id).single();
+    
     const { error } = await supabase.from('projects').delete().eq('id', id);
     if (error) handleError(error);
+    
+    // 记录日志
+    await logOperation('delete', 'projects', { id, data: oldData });
+    
     return null;
   },
 };
 
-// ==================== 供应商管理 API ====================
+// ==================== 供应商 API ====================
 export const suppliersApi = {
   list: async (params?: { page?: number; pageSize?: number; keyword?: string; category?: string }) => {
     let query = supabase.from('suppliers').select('*', { count: 'exact' });
@@ -200,10 +250,14 @@ export const suppliersApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('insert', 'suppliers', { id: result.id, data: result });
     return result;
   },
   
   update: async (id: string, data: any) => {
+    const { data: oldData } = await supabase.from('suppliers').select('*').eq('id', id).single();
+    
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -222,17 +276,21 @@ export const suppliersApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('update', 'suppliers', { id, old: oldData, new: result });
     return result;
   },
   
   delete: async (id: string) => {
+    const { data: oldData } = await supabase.from('suppliers').select('*').eq('id', id).single();
     const { error } = await supabase.from('suppliers').delete().eq('id', id);
     if (error) handleError(error);
+    await logOperation('delete', 'suppliers', { id, data: oldData });
     return null;
   },
 };
 
-// ==================== 采购管理 API ====================
+// ==================== 采购 API ====================
 export const purchasesApi = {
   list: async (params?: any) => {
     let query = supabase.from('purchases').select('*, projects(name), suppliers(name)', { count: 'exact' });
@@ -292,10 +350,14 @@ export const purchasesApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('insert', 'purchases', { id: result.id, data: result });
     return result;
   },
   
   update: async (id: string, data: any) => {
+    const { data: oldData } = await supabase.from('purchases').select('*').eq('id', id).single();
+    
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -314,12 +376,16 @@ export const purchasesApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('update', 'purchases', { id, old: oldData, new: result });
     return result;
   },
   
   delete: async (id: string) => {
+    const { data: oldData } = await supabase.from('purchases').select('*').eq('id', id).single();
     const { error } = await supabase.from('purchases').delete().eq('id', id);
     if (error) handleError(error);
+    await logOperation('delete', 'purchases', { id, data: oldData });
     return null;
   },
 };
@@ -334,9 +400,6 @@ export const transactionsApi = {
     }
     if (params?.type && params.type !== 'all') {
       query = query.eq('type', params.type);
-    }
-    if (params?.projectId && params.projectId !== 'all') {
-      query = query.eq('project_id', params.projectId);
     }
     
     const page = params?.page || 1;
@@ -381,10 +444,14 @@ export const transactionsApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('insert', 'transactions', { id: result.id, data: result });
     return result;
   },
   
   update: async (id: string, data: any) => {
+    const { data: oldData } = await supabase.from('transactions').select('*').eq('id', id).single();
+    
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -403,12 +470,16 @@ export const transactionsApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('update', 'transactions', { id, old: oldData, new: result });
     return result;
   },
   
   delete: async (id: string) => {
+    const { data: oldData } = await supabase.from('transactions').select('*').eq('id', id).single();
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (error) handleError(error);
+    await logOperation('delete', 'transactions', { id, data: oldData });
     return null;
   },
 };
@@ -473,10 +544,14 @@ export const invoicesApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('insert', 'invoices', { id: result.id, data: result });
     return result;
   },
   
   update: async (id: string, data: any) => {
+    const { data: oldData } = await supabase.from('invoices').select('*').eq('id', id).single();
+    
     const cleanedData: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === '') {
@@ -495,13 +570,62 @@ export const invoicesApi = {
       .select()
       .single();
     if (error) handleError(error);
+    
+    await logOperation('update', 'invoices', { id, old: oldData, new: result });
     return result;
   },
   
   delete: async (id: string) => {
+    const { data: oldData } = await supabase.from('invoices').select('*').eq('id', id).single();
     const { error } = await supabase.from('invoices').delete().eq('id', id);
     if (error) handleError(error);
+    await logOperation('delete', 'invoices', { id, data: oldData });
     return null;
+  },
+};
+
+// ==================== 仪表盘 API ====================
+export const dashboardApi = {
+  getStats: async () => {
+    // 项目总数
+    const { count: totalProjects } = await supabase.from('projects').select('*', { count: 'exact', head: true });
+    
+    // 在途项目金额
+    const { data: ongoingProjects } = await supabase.from('projects').select('contract_amount').eq('status', 'ongoing');
+    const ongoingAmount = ongoingProjects?.reduce((sum, p) => sum + (parseFloat(p.contract_amount) || 0), 0) || 0;
+    
+    // 采购总额
+    const { data: purchases } = await supabase.from('purchases').select('amount');
+    const totalPurchase = purchases?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+    
+    // 已付款总额
+    const { data: payments } = await supabase.from('transactions').select('amount').eq('type', 'payment');
+    const totalPaid = payments?.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount) || 0), 0) || 0;
+    
+    // 已收款总额
+    const { data: receipts } = await supabase.from('transactions').select('amount').eq('type', 'receipt');
+    const totalReceipt = receipts?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+    
+    return {
+      totalProjects: totalProjects || 0,
+      ongoingAmount,
+      unpaidAmount: totalPurchase - totalPaid,
+      unpaidInvoiceAmount: totalReceipt,
+    };
+  },
+};
+
+// ==================== 导出 API ====================
+export const exportApi = {
+  toFeishu: async (dataType: string) => {
+    console.log('导出到飞书:', dataType);
+    await logOperation('export', dataType, { target: 'feishu' });
+    return { success: true, message: '导出功能开发中' };
+  },
+  exportData: async (module: string, params?: any) => {
+    console.log('导出数据:', module, params);
+    await logOperation('export', module, { params });
+    return { success: true, message: '导出功能开发中' };
   },
 };
 
@@ -513,19 +637,6 @@ export const api = {
   purchases: purchasesApi,
   transactions: transactionsApi,
   invoices: invoicesApi,
-  dashboard: {
-    getStats: async () => {
-      return { totalProjects: 0, ongoingAmount: 0, unpaidAmount: 0, unpaidInvoiceAmount: 0 };
-    },
-  },
-  export: {
-    toFeishu: async (dataType: string) => {
-      console.log('导出到飞书:', dataType);
-      return { success: true, message: '导出功能开发中' };
-    },
-    exportData: async (module: string, params?: any) => {
-      console.log('导出数据:', module, params);
-      return { success: true, message: '导出功能开发中' };
-    },
-  },
+  dashboard: dashboardApi,
+  export: exportApi,
 };

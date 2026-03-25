@@ -3,21 +3,21 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 
-export default function ProjectFormPage() {
+export default function SupplierFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
     code: '',
-    status: 'ongoing',
-    client: '',
-    contractor: '汇信电力',
-    contract_no: '',
-    contract_amount: '',
-    start_date: '',
-    end_date: '',
+    name: '',
+    category: 'equipment',
+    contact_person: '',
+    phone: '',
+    address: '',
+    bank: '',
+    account: '',
+    rating: '',
     remark: '',
   });
 
@@ -26,10 +26,10 @@ export default function ProjectFormPage() {
 
   useEffect(() => {
     if (isEdit && canEdit) {
-      const loadProject = async () => {
+      const loadSupplier = async () => {
         try {
           const { data, error } = await supabase
-            .from('projects')
+            .from('suppliers')
             .select('*')
             .eq('id', id)
             .single();
@@ -37,24 +37,24 @@ export default function ProjectFormPage() {
           if (error) throw error;
           if (data) {
             setFormData({
-              name: data.name || '',
               code: data.code || '',
-              status: data.status || 'ongoing',
-              client: data.client || '',
-              contractor: data.contractor || '汇信电力',
-              contract_no: data.contract_no || '',
-              contract_amount: data.contract_amount || '',
-              start_date: data.start_date || '',
-              end_date: data.end_date || '',
+              name: data.name || '',
+              category: data.category || 'equipment',
+              contact_person: data.contact_person || '',
+              phone: data.phone || '',
+              address: data.address || '',
+              bank: data.bank || '',
+              account: data.account || '',
+              rating: data.rating || '',
               remark: data.remark || '',
             });
           }
         } catch (error) {
-          console.error('加载项目失败', error);
-          navigate('/projects');
+          console.error('加载供应商失败', error);
+          navigate('/suppliers');
         }
       };
-      loadProject();
+      loadSupplier();
     }
   }, [id, isEdit, canEdit, navigate]);
 
@@ -65,28 +65,28 @@ export default function ProjectFormPage() {
     
     try {
       const submitData: any = {
-        name: formData.name,
         code: formData.code,
-        status: formData.status,
-        client: formData.client || null,
-        contractor: formData.contractor || '汇信电力',
-        contract_no: formData.contract_no || null,
-        contract_amount: formData.contract_amount === '' ? null : parseFloat(formData.contract_amount),
-        start_date: formData.start_date === '' ? null : formData.start_date,
-        end_date: formData.end_date === '' ? null : formData.end_date,
+        name: formData.name,
+        category: formData.category,
+        contact_person: formData.contact_person || null,
+        phone: formData.phone || null,
+        address: formData.address || null,
+        bank: formData.bank || null,
+        account: formData.account || null,
+        rating: formData.rating === '' ? null : parseFloat(formData.rating),
         remark: formData.remark || null,
         updated_at: new Date().toISOString(),
       };
 
       if (isEdit) {
         const { error } = await supabase
-          .from('projects')
+          .from('suppliers')
           .update(submitData)
           .eq('id', id);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('projects')
+          .from('suppliers')
           .insert([{
             ...submitData,
             id: crypto.randomUUID(),
@@ -95,7 +95,7 @@ export default function ProjectFormPage() {
         if (error) throw error;
       }
       
-      navigate('/projects');
+      navigate('/suppliers');
     } catch (error: any) {
       console.error('保存失败:', error);
       alert(error.message || '保存失败');
@@ -104,27 +104,24 @@ export default function ProjectFormPage() {
     }
   };
 
+  const categoryOptions = [
+    { value: 'equipment', label: '设备材料' },
+    { value: 'installation', label: '安装' },
+    { value: 'construction', label: '土建' },
+    { value: 'other', label: '生活/其他' },
+  ];
+
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
   }
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑项目' : '新建项目'}</h1>
+      <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑供应商' : '新建供应商'}</h1>
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">项目名称 *</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">项目编号 *</label>
+            <label className="block text-sm font-medium mb-1">供应商编号 *</label>
             <input
               type="text"
               required
@@ -134,71 +131,81 @@ export default function ProjectFormPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">状态</label>
+            <label className="block text-sm font-medium mb-1">供应商名称 *</label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">类别</label>
             <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             >
-              <option value="ongoing">进行中</option>
-              <option value="completed">已完成</option>
-              <option value="pending_payment">未收齐</option>
-              <option value="suspended">已暂停</option>
-              <option value="planning">规划中</option>
+              {categoryOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">甲方</label>
+            <label className="block text-sm font-medium mb-1">联系人</label>
             <input
               type="text"
-              value={formData.client}
-              onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+              value={formData.contact_person}
+              onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">乙方</label>
+            <label className="block text-sm font-medium mb-1">联系电话</label>
             <input
-              type="text"
-              value={formData.contractor}
-              onChange={(e) => setFormData({ ...formData, contractor: e.target.value })}
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">合同编号</label>
+            <label className="block text-sm font-medium mb-1">地址</label>
             <input
               type="text"
-              value={formData.contract_no}
-              onChange={(e) => setFormData({ ...formData, contract_no: e.target.value })}
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">合同金额</label>
+            <label className="block text-sm font-medium mb-1">开户行</label>
+            <input
+              type="text"
+              value={formData.bank}
+              onChange={(e) => setFormData({ ...formData, bank: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">账号</label>
+            <input
+              type="text"
+              value={formData.account}
+              onChange={(e) => setFormData({ ...formData, account: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">评级（1-5）</label>
             <input
               type="number"
-              step="0.01"
-              value={formData.contract_amount}
-              onChange={(e) => setFormData({ ...formData, contract_amount: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">开工日期</label>
-            <input
-              type="date"
-              value={formData.start_date}
-              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">完工日期</label>
-            <input
-              type="date"
-              value={formData.end_date}
-              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+              step="0.1"
+              min="1"
+              max="5"
+              value={formData.rating}
+              onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
@@ -222,7 +229,7 @@ export default function ProjectFormPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/suppliers')}
             className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
           >
             取消

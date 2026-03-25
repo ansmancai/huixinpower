@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
+import ExportButton from '../components/ExportButton';
+import ImportModal from '../components/ImportModal';
+
+// 供应商搜索函数（用于导入时的关联转换）
+async function searchSuppliers(keyword: string) {
+  const { data } = await supabase
+    .from('suppliers')
+    .select('id, name, code')
+    .ilike('name', `%${keyword}%`)
+    .limit(10);
+  return data || [];
+}
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -10,9 +22,11 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('all');
+  const [showImportModal, setShowImportModal] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
+  const canExport = user?.role === 'admin' || user?.role === 'finance';
 
   const loadProjects = async () => {
     setLoading(true);
@@ -27,8 +41,40 @@ export default function ProjectsPage() {
       }
       
       const { data, error } = await query.order('created_at', { ascending: false });
-      
       if (error) throw error;
+      
+      // 获取关联的收付款和发票数据用于计算已收款/已开票
+      const projectIds = data?.map(p => p.id) || [];
+      if (projectIds.length > 0) {
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('project_id, amount, type')
+          .in('project_id', projectIds);
+        
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('project_id, total_amount')
+          .in('project_id', projectIds);
+        
+        const receiptMap: Record<string, number> = {};
+        const invoiceMap: Record<string, number> = {};
+        
+        transactions?.forEach(t => {
+          if (t.type === 'receipt') {
+            receiptMap[t.project_id] = (receiptMap[t.project_id] || 0) + parseFloat(t.amount);
+          }
+        });
+        
+        invoices?.forEach(i => {
+          invoiceMap[i.project_id] = (invoiceMap[i.project_id] || 0) + parseFloat(i.total_amount);
+        });
+        
+        data?.forEach(p => {
+          p.receivedAmount = receiptMap[p.id] || 0;
+          p.invoicedAmount = invoiceMap[p.id] || 0;
+        });
+      }
+      
       setProjects(data || []);
     } catch (error) {
       console.error('加载项目失败', error);
@@ -61,10 +107,6 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleExport = async () => {
-    alert('导出功能开发中');
-  };
-
   const statusMap: Record<string, { label: string; color: string }> = {
     ongoing: { label: '进行中', color: 'bg-blue-100 text-blue-800' },
     completed: { label: '已完成', color: 'bg-green-100 text-green-800' },
@@ -77,21 +119,43 @@ export default function ProjectsPage() {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
   };
 
+  // 导入列配置
+  const importColumns = [
+    { key: 'name', label: '项目名称', required: true },
+    { key: 'code', label: '项目编号', required: true },
+    { key: 'status', label: '项目状态', required: false },
+    { key: 'client', label: '甲方', required: false },
+    { key: 'contractor', label: '乙方', required: false },
+    { key: 'contract_no', label: '合同编号', required: false },
+    { key: 'contract_amount', label: '合同金额', required: false },
+    { key: 'start_date', label: '开工日期', required: false },
+    { key: 'end_date', label: '完工日期', required: false },
+    { key: 'remark', label: '备注', required: false },
+  ];
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">项目管理</h1>
         <div className="flex gap-2">
-          <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-            📥 导出数据
-          </button>
+          {canExport && (
+            <ExportButton module="projects" moduleName="项目" filter={{ status: status !== 'all' ? status : undefined }} />
+          )}
           {canEdit && (
-            <button
-              onClick={() => navigate('/projects/new')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-              + 新建项目
-            </button>
+            <>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                📥 导入数据
+              </button>
+              <button
+                onClick={() => navigate('/projects/new')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                + 新建项目
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -141,8 +205,8 @@ export default function ProjectsPage() {
             <tbody className="divide-y divide-gray-200">
               {projects.map((project) => {
                 const contractAmount = parseFloat(project.contract_amount || '0');
-                const receivedAmount = 0; // 需要从收付款表计算
-                const invoicedAmount = 0; // 需要从发票表计算
+                const receivedAmount = project.receivedAmount || 0;
+                const invoicedAmount = project.invoicedAmount || 0;
                 return (
                   <tr key={project.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">{project.code}</td>
@@ -183,6 +247,33 @@ export default function ProjectsPage() {
           )}
         </div>
       )}
+
+      {/* 导入弹窗 */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          loadProjects();
+          setShowImportModal(false);
+        }}
+        module="projects"
+        moduleName="项目"
+        columns={importColumns}
+        transformRow={async (row) => {
+          // 处理状态值转换
+          const statusMap: Record<string, string> = {
+            '进行中': 'ongoing',
+            '已完成': 'completed',
+            '未收齐': 'pending_payment',
+            '已暂停': 'suspended',
+            '规划中': 'planning',
+          };
+          if (row.status && statusMap[row.status]) {
+            row.status = statusMap[row.status];
+          }
+          return row;
+        }}
+      />
     </div>
   );
 }
