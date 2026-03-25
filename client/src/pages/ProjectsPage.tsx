@@ -31,7 +31,8 @@ export default function ProjectsPage() {
       let query = supabase.from('projects').select('*');
       
       if (keyword) {
-        query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%`);
+  query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%,client.ilike.%${keyword}%`);
+}
       }
       if (status && status !== 'all') {
         query = query.eq('status', status);

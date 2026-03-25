@@ -38,8 +38,31 @@ export default function InvoicesPage() {
       let query = supabase.from('invoices').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
       if (keyword) {
-        query = query.ilike('invoice_no', `%${keyword}%`);
-      }
+  // 先搜索匹配的项目ID
+  const { data: matchedProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .ilike('name', `%${keyword}%`);
+  const projectIds = matchedProjects?.map(p => p.id) || [];
+  
+  // 搜索匹配的供应商ID
+  const { data: matchedSuppliers } = await supabase
+    .from('suppliers')
+    .select('id')
+    .ilike('name', `%${keyword}%`);
+  const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+  
+  // 构建搜索条件
+  const conditions = [`invoice_no.ilike.%${keyword}%`];
+  if (projectIds.length > 0) {
+    conditions.push(`project_id.in.(${projectIds.join(',')})`);
+  }
+  if (supplierIds.length > 0) {
+    conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+  }
+  
+  query = query.or(conditions.join(','));
+}
       if (type !== 'all') {
         query = query.eq('type', type);
       }
