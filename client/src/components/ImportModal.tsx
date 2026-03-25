@@ -33,7 +33,6 @@ const fieldMappings: Record<string, { label: string; required?: boolean; type?: 
     { label: '地址', key: 'address' },
     { label: '开户行', key: 'bank' },
     { label: '账号', key: 'account' },
-    { label: '评级', key: 'rating', type: 'number' },
     { label: '备注', key: 'remark' },
   ],
   purchases: [
