@@ -292,7 +292,7 @@ export default function PurchaseDetailPage() {
                     <td className="px-4 py-2 text-right">{formatAmount(parseFloat(inv.total_amount || inv.amount))}</td>
                     <td className="px-4 py-2 text-sm">{new Date(inv.invoice_date).toLocaleDateString()}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
+                      
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           inv.status === 'paid' ? 'bg-green-100 text-green-800' :
                           inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
