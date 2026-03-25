@@ -26,6 +26,8 @@ export default function InvoiceFormPage() {
     status: 'unpaid',
     remark: '',
   });
+const [selectedProjectName, setSelectedProjectName] = useState('');
+const [selectedSupplierName, setSelectedSupplierName] = useState('');
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -91,6 +93,21 @@ export default function InvoiceFormPage() {
               status: data.status || 'unpaid',
               remark: data.remark || '',
             });
+             if (data.project_id) {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('name')
+      .eq('id', data.project_id)
+      .single();
+    if (project) setSelectedProjectName(project.name);
+  }
+  if (data.supplier_id) {
+    const { data: supplier } = await supabase
+      .from('suppliers')
+      .select('name')
+      .eq('id', data.supplier_id)
+      .single();
+    if (supplier) setSelectedSupplierName(supplier.name);
           }
         } catch (error) {
           console.error('加载发票失败', error);
