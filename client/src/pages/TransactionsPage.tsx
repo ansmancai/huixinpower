@@ -24,49 +24,73 @@ export default function TransactionsPage() {
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
   const loadTransactions = async () => {
-    setLoading(true);
-    try {
-      let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
+  setLoading(true);
+  try {
+    let query = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
+    
+    // 关键词搜索（支持备注、支付方式、项目名、供应商名）
+    if (keyword && keyword.trim() !== '') {
+      // 先搜索匹配的项目ID
+      const { data: matchedProjects } = await supabase
+        .from('projects')
+        .select('id')
+        .ilike('name', `%${keyword}%`);
+      const projectIds = matchedProjects?.map(p => p.id) || [];
       
-      // 关键词搜索
-      if (keyword && keyword.trim() !== '') {
-        query = query.or(`remark.ilike.%${keyword}%,payment_method.ilike.%${keyword}%`);
+      // 搜索匹配的供应商ID
+      const { data: matchedSuppliers } = await supabase
+        .from('suppliers')
+        .select('id')
+        .ilike('name', `%${keyword}%`);
+      const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+      
+      // 构建搜索条件
+      const conditions = [];
+      conditions.push(`remark.ilike.%${keyword}%`);
+      conditions.push(`payment_method.ilike.%${keyword}%`);
+      if (projectIds.length > 0) {
+        conditions.push(`project_id.in.(${projectIds.join(',')})`);
+      }
+      if (supplierIds.length > 0) {
+        conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
       }
       
-      // 类型筛选
-      if (type && type !== 'all') {
-        query = query.eq('type', type);
-      }
-      
-      // 日期范围筛选
-      if (startDate && startDate !== '') {
-        query = query.gte('date', startDate);
-      }
-      if (endDate && endDate !== '') {
-        query = query.lte('date', endDate);
-      }
-      
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
-      if (error) throw error;
-      
-      console.log('查询结果:', data?.length, '条');
-      
-      // 计算汇总（基于当前页数据）
-      const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
-      const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-      setSummary({ totalReceipt, totalPayment });
-      
-      setTransactions(data || []);
-      setTotal(count || 0);
-    } catch (error) {
-      console.error('加载交易记录失败', error);
-    } finally {
-      setLoading(false);
+      query = query.or(conditions.join(','));
     }
-  };
+    
+    // 类型筛选
+    if (type && type !== 'all') {
+      query = query.eq('type', type);
+    }
+    
+    // 日期范围筛选
+    if (startDate && startDate !== '') {
+      query = query.gte('date', startDate);
+    }
+    if (endDate && endDate !== '') {
+      query = query.lte('date', endDate);
+    }
+    
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    
+    const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
+    if (error) throw error;
+    
+    console.log('查询结果:', data?.length, '条');
+    
+    const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
+    const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+    setSummary({ totalReceipt, totalPayment });
+    
+    setTransactions(data || []);
+    setTotal(count || 0);
+  } catch (error) {
+    console.error('加载交易记录失败', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 当任何筛选条件变化时重新加载，重置页码为1
   useEffect(() => {
