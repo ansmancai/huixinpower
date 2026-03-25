@@ -69,50 +69,53 @@ const [selectedSupplierName, setSelectedSupplierName] = useState('');
   };
 
   useEffect(() => {
-    if (isEdit && canEdit) {
-      const loadInvoice = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('invoices')
-            .select('*')
-            .eq('id', id)
-            .single();
-          if (error) throw error;
-          if (data) {
-            setFormData({
-              type: data.type || 'input',
-              invoice_no: data.invoice_no || '',
-              amount: data.amount || '',
-              tax_amount: data.tax_amount || '',
-              total_amount: data.total_amount || '',
-              invoice_date: data.invoice_date || '',
-              project_id: data.project_id || '',
-              purchase_id: data.purchase_id || '',
-              supplier_name: data.supplier_name || '',
-              supplier_id: data.supplier_id || '',
-              status: data.status || 'unpaid',
-              remark: data.remark || '',
-            });
-             if (data.project_id) {
-    const { data: project } = await supabase
-      .from('projects')
-      .select('name')
-      .eq('id', data.project_id)
-      .single();
-    if (project) setSelectedProjectName(project.name);
-  }
-  if (data.supplier_id) {
-    const { data: supplier } = await supabase
-      .from('suppliers')
-      .select('name')
-      .eq('id', data.supplier_id)
-      .single();
-    if (supplier) setSelectedSupplierName(supplier.name);
+  if (isEdit && canEdit) {
+    const loadInvoice = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('invoices')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (error) throw error;
+        if (data) {
+          setFormData({
+            type: data.type || 'input',
+            invoice_no: data.invoice_no || '',
+            amount: data.amount || '',
+            tax_amount: data.tax_amount || '',
+            total_amount: data.total_amount || '',
+            invoice_date: data.invoice_date || '',
+            project_id: data.project_id || '',
+            purchase_id: data.purchase_id || '',
+            supplier_name: data.supplier_name || '',
+            supplier_id: data.supplier_id || '',
+            status: data.status || 'unpaid',
+            remark: data.remark || '',
+          });
+          
+          if (data.project_id) {
+            const { data: project } = await supabase
+              .from('projects')
+              .select('name')
+              .eq('id', data.project_id)
+              .single();
+            if (project) setSelectedProjectName(project.name);
           }
-        } catch (error) {
-          console.error('加载发票失败', error);
-          navigate('/invoices');
-       }
+          
+          if (data.supplier_id) {
+            const { data: supplier } = await supabase
+              .from('suppliers')
+              .select('name')
+              .eq('id', data.supplier_id)
+              .single();
+            if (supplier) setSelectedSupplierName(supplier.name);
+          }
+        }
+      } catch (error) {
+        console.error('加载发票失败', error);
+        navigate('/invoices');
+      }
     };
     loadInvoice();
   }
