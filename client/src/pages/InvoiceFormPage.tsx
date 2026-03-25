@@ -45,7 +45,6 @@ export default function InvoiceFormPage() {
     const purchaseId = params.get('purchaseId');
     if (projectId) setFormData(prev => ({ ...prev, project_id: projectId }));
     if (purchaseId) {
-      // 如果传入了采购ID，自动加载采购信息
       loadPurchaseInfo(purchaseId);
     }
   }, [location]);
@@ -53,7 +52,7 @@ export default function InvoiceFormPage() {
   const loadPurchaseInfo = async (purchaseId: string) => {
     const { data } = await supabase
       .from('purchases')
-      .select('*, suppliers(name)')
+      .select('*, suppliers(name), suppliers(id)')
       .eq('id', purchaseId)
       .single();
     if (data) {
@@ -61,6 +60,7 @@ export default function InvoiceFormPage() {
         ...prev,
         purchase_id: data.id,
         supplier_name: data.suppliers?.name || '',
+        supplier_id: data.supplier_id || '',
         amount: data.amount || '',
       }));
     }
@@ -101,9 +101,8 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // PDF 解析（暂时用简单方法）
+  // PDF 解析（暂保留）
   const parsePDF = async (file: File) => {
-    // 暂时返回空，后续再完善
     return {};
   };
 
@@ -201,12 +200,12 @@ export default function InvoiceFormPage() {
     return data || [];
   };
 
-  // 根据项目搜索采购单
+  // 根据项目搜索采购单（返回带供应商信息）
   const searchPurchasesByProject = async (projectId: string, keyword: string) => {
     if (!projectId) return [];
     let query = supabase
       .from('purchases')
-      .select('id, purchase_no, content, amount, suppliers(name)')
+      .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
       .eq('project_id', projectId);
     
     if (keyword) {
@@ -218,14 +217,14 @@ export default function InvoiceFormPage() {
       id: p.id,
       name: `${p.purchase_no} - ${p.content} (¥${p.amount})`,
       supplier_name: p.suppliers?.name || '',
+      supplier_id: p.supplier_id || '',
       amount: p.amount,
     })) || [];
   };
 
-  // 包装 SearchSelect 的 onSearch 函数，使其能接收项目ID
+  // 包装 SearchSelect 的 onSearch 函数
   const handlePurchaseSearch = async (keyword: string) => {
     if (!formData.project_id) {
-      alert('请先选择项目');
       return [];
     }
     return searchPurchasesByProject(formData.project_id, keyword);
@@ -239,7 +238,7 @@ export default function InvoiceFormPage() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
-      {/* PDF 上传区域（暂保留，后续完善） */}
+      {/* PDF 上传区域 */}
       {!isEdit && (
         <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
           <label className="block text-sm font-medium mb-2">📄 上传 PDF 发票（可选，自动识别填写）</label>
@@ -334,7 +333,7 @@ export default function InvoiceFormPage() {
             <SearchSelect
               value={formData.project_id}
               onChange={(val) => {
-                setFormData({ ...formData, project_id: val, purchase_id: '', supplier_name: '' });
+                setFormData({ ...formData, project_id: val, purchase_id: '', supplier_name: '', supplier_id: '' });
               }}
               onSearch={searchProjects}
               placeholder="选择项目"
@@ -351,6 +350,7 @@ export default function InvoiceFormPage() {
                   ...formData,
                   purchase_id: val,
                   supplier_name: option?.supplier_name || '',
+                  supplier_id: option?.supplier_id || '',
                   amount: option?.amount || formData.amount,
                 });
               }}

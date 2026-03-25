@@ -4,6 +4,7 @@ interface Option {
   id: string;
   name: string;
   code?: string;
+  [key: string]: any;
 }
 
 interface SearchSelectProps {
@@ -100,7 +101,7 @@ export default function SearchSelect({
   }, [value, options]);
 
   const handleSelect = (option: Option) => {
-    onChange(option.id, option);
+    onChange(option.id, option);  // 传递完整对象
     setSelectedLabel(option.name);
     setSearchKeyword('');
     setIsOpen(false);
