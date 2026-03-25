@@ -267,29 +267,15 @@ export default function SuppliersPage() {
       )}
 
       <ImportModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onSuccess={() => {
-          loadSuppliers();
-          setShowImportModal(false);
-        }}
-        module="suppliers"
-        moduleName="供应商"
-        columns={importColumns}
-        transformRow={async (row) => {
-          // 类别转换
-          const categoryMap: Record<string, string> = {
-            '设备材料': 'equipment',
-            '安装': 'installation',
-            '土建': 'construction',
-            '生活': 'other',
-            '其他': 'other',
-          };
-          if (row.category && categoryMap[row.category]) {
-            row.category = categoryMap[row.category];
-          }
-          return row;
-        }}
+  isOpen={showImportModal}
+  onClose={() => setShowImportModal(false)}
+  onSuccess={() => {
+    loadData();
+    setShowImportModal(false);
+  }}
+  module="projects"
+  moduleName="项目"
+/>
       />
     </div>
   );

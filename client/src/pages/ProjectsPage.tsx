@@ -250,30 +250,15 @@ export default function ProjectsPage() {
 
       {/* 导入弹窗 */}
       <ImportModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onSuccess={() => {
-          loadProjects();
-          setShowImportModal(false);
-        }}
-        module="projects"
-        moduleName="项目"
-        columns={importColumns}
-        transformRow={async (row) => {
-          // 处理状态值转换
-          const statusMap: Record<string, string> = {
-            '进行中': 'ongoing',
-            '已完成': 'completed',
-            '未收齐': 'pending_payment',
-            '已暂停': 'suspended',
-            '规划中': 'planning',
-          };
-          if (row.status && statusMap[row.status]) {
-            row.status = statusMap[row.status];
-          }
-          return row;
-        }}
-      />
+  isOpen={showImportModal}
+  onClose={() => setShowImportModal(false)}
+  onSuccess={() => {
+    loadData();
+    setShowImportModal(false);
+  }}
+  module="projects"
+  moduleName="项目"
+/>
     </div>
   );
 }
