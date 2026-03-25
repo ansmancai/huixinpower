@@ -402,6 +402,7 @@ export default function InvoiceFormPage() {
               className="w-full px-3 py-2 border rounded-lg"
             >
               <option value="unpaid">未付款</option>
+              <option value="partial">部分付款</option> 
               <option value="paid">已付款</option>
               <option value="cancelled">作废</option>
             </select>
