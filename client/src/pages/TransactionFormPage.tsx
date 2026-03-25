@@ -311,7 +311,7 @@ export default function TransactionFormPage() {
               }}
               onSearch={searchSuppliers}
               placeholder="选择供应商"
-               displayName={selectedSupplierName}
+              displayName={selectedSupplierName}
             />
             {selectedSupplierName && (
               <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>
@@ -321,19 +321,21 @@ export default function TransactionFormPage() {
             <label className="block text-sm font-medium mb-1">关联采购</label>
             {formData.project_id && formData.supplier_id ? (
               matchingPurchases.length > 0 ? (
-                <select
-                  value={formData.purchase_id}
-                  initialOptions={purchaseOptions}
-                  onChange={(e) => setFormData({ ...formData, purchase_id: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="">不关联采购</option>
-                  {matchingPurchases.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+  value={formData.purchase_id}
+  onChange={(val, option) => {
+    setFormData({
+      ...formData,
+      purchase_id: val,
+      supplier_name: option?.supplier_name || '',
+      supplier_id: option?.supplier_id || '',
+      amount: option?.amount || formData.amount,
+    });
+  }}
+  onSearch={handlePurchaseSearch}
+  placeholder="选择采购单"
+  initialOptions={purchaseOptions}
+/>
               ) : (
                 <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
                   该供应商在此项目下暂无采购记录

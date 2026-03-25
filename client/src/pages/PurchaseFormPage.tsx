@@ -14,6 +14,8 @@ export default function PurchaseFormPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [projectOptions, setProjectOptions] = useState<any[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
+  const [selectedProjectName, setSelectedProjectName] = useState('');
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
  
   const [formData, setFormData] = useState({
     purchase_no: '',
