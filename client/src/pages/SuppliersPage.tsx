@@ -262,7 +262,7 @@ export default function SuppliersPage() {
     loadData();
     setShowImportModal(false);
   }}
-  module="Suppliers"
+  module="suppliers"
   moduleName="供应商"
  />
     </div>
