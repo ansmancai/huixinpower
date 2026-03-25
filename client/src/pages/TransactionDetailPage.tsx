@@ -5,7 +5,6 @@ import { useAuthStore } from '../store/authStore';
 import * as XLSX from 'xlsx';
 import PaymentRequestModal from '../components/PaymentRequestModal';
 
-const [showPaymentModal, setShowPaymentModal] = useState(false);
 
 export default function TransactionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +16,7 @@ export default function TransactionDetailPage() {
   const [supplier, setSupplier] = useState<any>(null);
   const [purchase, setPurchase] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
