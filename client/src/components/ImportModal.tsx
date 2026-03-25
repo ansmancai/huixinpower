@@ -10,11 +10,36 @@ interface ImportModalProps {
   moduleName: string;
 }
 
+// 状态映射
+const statusMap: Record<string, string> = {
+  '进行中': 'ongoing', '已完成': 'completed', '未收齐': 'pending_payment', 
+  '已暂停': 'suspended', '规划中': 'planning'
+};
+const categoryMap: Record<string, string> = {
+  '设备材料': 'equipment', '安装': 'installation', '土建': 'construction', '生活/其他': 'other'
+};
+const logisticsMap: Record<string, string> = {
+  '已到货': 'arrived', '已下单': 'ordered', '待发货': 'pending'
+};
+const typeMap: Record<string, string> = {
+  '收款': 'receipt', '付款': 'payment'
+};
+const paymentMethodMap: Record<string, string> = {
+  '银行转账': 'bank', '现金': 'cash', '微信': 'wechat', '支付宝': 'alipay', 
+  '汇票': 'draft', '支票': 'check', '其他': 'other'
+};
+const invoiceTypeMap: Record<string, string> = {
+  '进项': 'input', '销项': 'output'
+};
+const invoiceStatusMap: Record<string, string> = {
+  '未付款': 'unpaid', '已付款': 'paid', '作废': 'cancelled'
+};
+
 // 字段映射配置
-const fieldMappings: Record<string, { label: string; required?: boolean; type?: string }[]> = {
+const fieldMappings: Record<string, { label: string; key: string; required?: boolean; type?: string; transform?: (v: string) => string }[]> = {
   projects: [
     { label: '项目名称', key: 'name', required: true },
-    { label: '项目状态', key: 'status', required: false, transform: (v: string) => statusMap[v] },
+    { label: '项目状态', key: 'status', transform: (v: string) => statusMap[v] },
     { label: '项目编号', key: 'code', required: true },
     { label: '甲方', key: 'client' },
     { label: '乙方', key: 'contractor' },
@@ -33,6 +58,7 @@ const fieldMappings: Record<string, { label: string; required?: boolean; type?: 
     { label: '地址', key: 'address' },
     { label: '开户行', key: 'bank' },
     { label: '账号', key: 'account' },
+    { label: '评级', key: 'rating', type: 'number' },
     { label: '备注', key: 'remark' },
   ],
   purchases: [
@@ -70,34 +96,10 @@ const fieldMappings: Record<string, { label: string; required?: boolean; type?: 
   ],
 };
 
-// 状态映射
-const statusMap: Record<string, string> = {
-  '进行中': 'ongoing', '已完成': 'completed', '未收齐': 'pending_payment', '已暂停': 'suspended', '规划中': 'planning'
-};
-const categoryMap: Record<string, string> = {
-  '设备材料': 'equipment', '安装': 'installation', '土建': 'construction', '生活/其他': 'other'
-};
-const logisticsMap: Record<string, string> = {
-  '已到货': 'arrived', '已下单': 'ordered', '待发货': 'pending'
-};
-const typeMap: Record<string, string> = {
-  '收款': 'receipt', '付款': 'payment'
-};
-const paymentMethodMap: Record<string, string> = {
-  '银行转账': 'bank', '现金': 'cash', '微信': 'wechat', '支付宝': 'alipay', '汇票': 'draft', '支票': 'check', '其他': 'other'
-};
-const invoiceTypeMap: Record<string, string> = {
-  '进项': 'input', '销项': 'output'
-};
-const invoiceStatusMap: Record<string, string> = {
-  '未付款': 'unpaid', '已付款': 'paid', '作废': 'cancelled'
-};
-
 // 获取模板数据
 const getTemplateData = (module: string) => {
   const fields = fieldMappings[module];
   if (!fields) return [];
-  
   const templateRow: any = {};
   fields.forEach(f => {
     templateRow[f.label] = f.label === '项目状态' ? '进行中' : 
@@ -114,9 +116,11 @@ const getTemplateData = (module: string) => {
 
 export default function ImportModal({ isOpen, onClose, onSuccess, module, moduleName }: ImportModalProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [previewData, setPreviewData] = useState<any[]>([]);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [validRows, setValidRows] = useState<any[]>([]);
+  const [errors, setErrors] = useState<{ row: number; errors: string[] }[]>([]);
   const [importing, setImporting] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -129,83 +133,154 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
     XLSX.writeFile(workbook, `${moduleName}_导入模板.xlsx`);
   };
 
+  const validateData = async (rows: any[]) => {
+    const fields = fieldMappings[module];
+    if (!fields) {
+      setErrors([{ row: 0, errors: ['模块配置错误'] }]);
+      return;
+    }
+    
+    const errorList: { row: number; errors: string[] }[] = [];
+    const validList: any[] = [];
+    
+    // 获取已存在的唯一值（用于检查重复）
+    let existingCodes: Set<string> = new Set();
+    if (module === 'projects') {
+      const { data } = await supabase.from('projects').select('code');
+      existingCodes = new Set(data?.map(c => c.code) || []);
+    } else if (module === 'suppliers') {
+      const { data } = await supabase.from('suppliers').select('code');
+      existingCodes = new Set(data?.map(c => c.code) || []);
+    } else if (module === 'purchases') {
+      const { data } = await supabase.from('purchases').select('purchase_no');
+      existingCodes = new Set(data?.map(c => c.purchase_no) || []);
+    } else if (module === 'invoices') {
+      const { data } = await supabase.from('invoices').select('invoice_no');
+      existingCodes = new Set(data?.map(c => c.invoice_no) || []);
+    }
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowErrors: string[] = [];
+      const newRow: any = {};
+      
+      for (const field of fields) {
+        let value = row[field.label];
+        
+        if (field.required && (!value || value === '')) {
+          rowErrors.push(`${field.label} 不能为空`);
+          continue;
+        }
+        
+        if (value && value !== '') {
+          // 类型转换
+          if (field.type === 'number') {
+            value = parseFloat(String(value).replace(/,/g, ''));
+            if (isNaN(value)) {
+              rowErrors.push(`${field.label} 格式错误（应为数字）`);
+              continue;
+            }
+          } else if (field.type === 'date') {
+            if (typeof value === 'number') {
+              value = XLSX.SSF.format('yyyy-mm-dd', value);
+            } else if (typeof value === 'string') {
+              value = value.replace(/\//g, '-').split(' ')[0];
+            }
+          }
+          
+          // 转换中文值
+          if (field.transform) {
+            const transformed = field.transform(value);
+            if (transformed) {
+              value = transformed;
+            } else if (field.required) {
+              rowErrors.push(`${field.label} 值 "${value}" 无效`);
+              continue;
+            }
+          }
+        }
+        
+        newRow[field.key] = value || null;
+      }
+      
+      // 检查唯一性
+      if (module === 'projects' && newRow.code && existingCodes.has(newRow.code)) {
+        rowErrors.push(`项目编号 "${newRow.code}" 已存在`);
+      }
+      if (module === 'suppliers' && newRow.code && existingCodes.has(newRow.code)) {
+        rowErrors.push(`供应商编号 "${newRow.code}" 已存在`);
+      }
+      if (module === 'purchases' && newRow.purchase_no && existingCodes.has(newRow.purchase_no)) {
+        rowErrors.push(`采购单号 "${newRow.purchase_no}" 已存在`);
+      }
+      if (module === 'invoices' && newRow.invoice_no && existingCodes.has(newRow.invoice_no)) {
+        rowErrors.push(`发票号码 "${newRow.invoice_no}" 已存在`);
+      }
+      
+      // 检查关联字段是否存在
+      if (newRow.project_name) {
+        const { data } = await supabase.from('projects').select('id').eq('name', newRow.project_name);
+        if (!data || data.length === 0) {
+          rowErrors.push(`所属项目 "${newRow.project_name}" 不存在`);
+        } else {
+          newRow.project_id = data[0].id;
+        }
+        delete newRow.project_name;
+      }
+      
+      if (newRow.supplier_name) {
+        const { data } = await supabase.from('suppliers').select('id').eq('name', newRow.supplier_name);
+        if (!data || data.length === 0) {
+          rowErrors.push(`供应商 "${newRow.supplier_name}" 不存在`);
+        } else {
+          newRow.supplier_id = data[0].id;
+        }
+        delete newRow.supplier_name;
+      }
+      
+      if (newRow.purchase_no) {
+        const { data } = await supabase.from('purchases').select('id').eq('purchase_no', newRow.purchase_no);
+        if (!data || data.length === 0) {
+          rowErrors.push(`采购单号 "${newRow.purchase_no}" 不存在`);
+        } else {
+          newRow.purchase_id = data[0].id;
+        }
+        delete newRow.purchase_no;
+      }
+      
+      if (rowErrors.length === 0) {
+        validList.push(newRow);
+      } else {
+        errorList.push({ row: i + 2, errors: rowErrors });
+      }
+    }
+    
+    setValidRows(validList);
+    setErrors(errorList);
+    setShowPreview(true);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFile(file);
     
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const data = new Uint8Array(evt.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet);
       
-      const fields = fieldMappings[module];
-      if (!fields) {
-        setErrors(['模块配置错误']);
-        return;
-      }
-      
-      const newErrors: string[] = [];
-      const validRows: any[] = [];
-      
-      rows.forEach((row: any, idx: number) => {
-        const newRow: any = {};
-        
-        for (const field of fields) {
-          let value = row[field.label];
-          
-          // 检查必填
-          if (field.required && (!value || value === '')) {
-            newErrors.push(`第 ${idx + 2} 行：${field.label} 不能为空`);
-            continue;
-          }
-          
-          if (value && value !== '') {
-            // 类型转换
-            if (field.type === 'number') {
-              value = parseFloat(String(value).replace(/,/g, ''));
-              if (isNaN(value)) {
-                newErrors.push(`第 ${idx + 2} 行：${field.label} 格式错误`);
-                continue;
-              }
-            } else if (field.type === 'date') {
-              if (typeof value === 'number') {
-                value = XLSX.SSF.format('yyyy-mm-dd', value);
-              } else if (typeof value === 'string') {
-                value = value.replace(/\//g, '-').split(' ')[0];
-              }
-            }
-            
-            // 转换中文值
-            if (field.transform) {
-              const transformed = field.transform(value);
-              if (transformed) {
-                value = transformed;
-              } else if (field.required) {
-                newErrors.push(`第 ${idx + 2} 行：${field.label} 值 "${value}" 无效`);
-                continue;
-              }
-            }
-          }
-          
-          newRow[field.key] = value || null;
-        }
-        
-        if (Object.keys(newRow).length > 0) {
-          validRows.push(newRow);
-        }
-      });
-      
-      setPreviewData(validRows);
-      setErrors(newErrors);
+      setValidating(true);
+      await validateData(rows);
+      setValidating(false);
     };
     reader.readAsArrayBuffer(file);
   };
 
   const handleImport = async () => {
-    if (previewData.length === 0) {
+    if (validRows.length === 0) {
       alert('没有有效数据可导入');
       return;
     }
@@ -214,43 +289,19 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
     let successCount = 0;
     let failCount = 0;
     
-    for (const row of previewData) {
+    for (const row of validRows) {
       try {
-        // 处理关联字段
-        let processedRow = { ...row };
+        const insertData = {
+          ...row,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        delete insertData.project_name;
+        delete insertData.supplier_name;
+        delete insertData.purchase_no;
         
-        // 关联项目名称 → ID
-        if (row.project_name) {
-          const { data } = await supabase.from('projects').select('id').eq('name', row.project_name).maybeSingle();
-          if (data) {
-            processedRow.project_id = data.id;
-          }
-          delete processedRow.project_name;
-        }
-        
-        // 关联供应商名称 → ID
-        if (row.supplier_name) {
-          const { data } = await supabase.from('suppliers').select('id').eq('name', row.supplier_name).maybeSingle();
-          if (data) {
-            processedRow.supplier_id = data.id;
-          }
-          delete processedRow.supplier_name;
-        }
-        
-        // 关联采购单号 → ID
-        if (row.purchase_no) {
-          const { data } = await supabase.from('purchases').select('id').eq('purchase_no', row.purchase_no).maybeSingle();
-          if (data) {
-            processedRow.purchase_id = data.id;
-          }
-          delete processedRow.purchase_no;
-        }
-        
-        processedRow.id = crypto.randomUUID();
-        processedRow.created_at = new Date().toISOString();
-        processedRow.updated_at = new Date().toISOString();
-        
-        const { error } = await supabase.from(module).insert([processedRow]);
+        const { error } = await supabase.from(module).insert([insertData]);
         if (error) throw error;
         successCount++;
       } catch (error: any) {
@@ -259,7 +310,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
       }
     }
     
-    await logOperation('import', module, { total: previewData.length, success: successCount, fail: failCount });
+    await logOperation('import', module, { total: validRows.length, success: successCount, fail: failCount });
     alert(`导入完成！成功: ${successCount} 条，失败: ${failCount} 条`);
     setImporting(false);
     onClose();
@@ -302,54 +353,72 @@ export default function ImportModal({ isOpen, onClose, onSuccess, module, module
             </p>
           </div>
           
-          {errors.length > 0 && (
-            <div className="mb-4 p-3 bg-red-50 rounded-lg max-h-40 overflow-auto">
-              <p className="text-red-600 font-medium mb-2">错误列表：</p>
-              {errors.map((err, i) => (
-                <p key={i} className="text-red-500 text-sm">{err}</p>
-              ))}
-            </div>
+          {validating && (
+            <div className="text-center py-4 text-blue-600">正在校验数据...</div>
           )}
           
-          {previewData.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2">数据预览（共 {previewData.length} 条）</p>
-              <div className="border rounded-lg overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      {Object.keys(previewData[0] || {}).map(key => (
-                        <th key={key} className="px-3 py-2 text-left">{key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewData.slice(0, 10).map((row, idx) => (
-                      <tr key={idx} className="border-t">
-                        {Object.values(row).map((val: any, i) => (
-                          <td key={i} className="px-3 py-1">{val !== null ? String(val) : '-'}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {previewData.length > 10 && (
-                  <p className="text-center text-gray-500 text-sm py-2">... 还有 {previewData.length - 10} 条</p>
-                )}
+          {showPreview && (
+            <>
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">校验结果</p>
+                <p className="text-green-600">✅ 有效数据: {validRows.length} 条</p>
+                <p className="text-red-600">❌ 错误数据: {errors.length} 条</p>
               </div>
-            </div>
+              
+              {errors.length > 0 && (
+                <div className="mb-4 p-3 bg-red-50 rounded-lg max-h-40 overflow-auto">
+                  <p className="text-red-600 font-medium mb-2">错误列表：</p>
+                  {errors.map((err, i) => (
+                    <p key={i} className="text-red-500 text-sm">
+                      第 {err.row} 行: {err.errors.join('; ')}
+                    </p>
+                  ))}
+                </div>
+              )}
+              
+              {validRows.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-2">数据预览（共 {validRows.length} 条）</p>
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {Object.keys(validRows[0] || {}).slice(0, 8).map(key => (
+                            <th key={key} className="px-3 py-2 text-left">{key}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {validRows.slice(0, 10).map((row, idx) => (
+                          <tr key={idx} className="border-t">
+                            {Object.values(row).slice(0, 8).map((val: any, i) => (
+                              <td key={i} className="px-3 py-1">{val !== null ? String(val) : '-'}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {validRows.length > 10 && (
+                      <p className="text-center text-gray-500 text-sm py-2">... 还有 {validRows.length - 10} 条</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
         
         <div className="flex justify-end gap-3 p-4 border-t">
           <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">取消</button>
-          <button
-            onClick={handleImport}
-            disabled={importing || previewData.length === 0}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {importing ? '导入中...' : '开始导入'}
-          </button>
+          {showPreview && validRows.length > 0 && (
+            <button
+              onClick={handleImport}
+              disabled={importing}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {importing ? '导入中...' : `只导入有效数据 (${validRows.length}条)`}
+            </button>
+          )}
         </div>
       </div>
     </div>
