@@ -40,27 +40,21 @@ export default function PurchasesPage() {
   const loadPurchases = async () => {
   setLoading(true);
   try {
-    // 先构建基础查询（不带分页）
+    // 构建基础查询
     let baseQuery = supabase.from('purchases').select('*, projects(name), suppliers(name)', { count: 'exact' });
     
-    if (keyword) {
-      baseQuery = baseQuery.ilike('content', `%${keyword}%`);
-    }
-    if (projectId !== 'all') {
-      baseQuery = baseQuery.eq('project_id', projectId);
-    }
-    if (supplierId !== 'all') {
-      baseQuery = baseQuery.eq('supplier_id', supplierId);
-    }
-    if (logisticsStatus !== 'all') {
-      baseQuery = baseQuery.eq('logistics_status', logisticsStatus);
-    }
+    if (keyword) baseQuery = baseQuery.ilike('content', `%${keyword}%`);
+    if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
+    if (supplierId !== 'all') baseQuery = baseQuery.eq('supplier_id', supplierId);
+    if (logisticsStatus !== 'all') baseQuery = baseQuery.eq('logistics_status', logisticsStatus);
     
-    // 获取全部数据用于统计
+    // 获取全部数据用于统计和映射
     const { data: allData, count: totalCount } = await baseQuery;
     
-    // 获取付款和收票数据（用于统计）
     const purchaseIds = allData?.map(p => p.id) || [];
+    let paymentMap: Record<string, number> = {};
+    let invoiceMap: Record<string, number> = {};
+    
     if (purchaseIds.length > 0) {
       const { data: payments } = await supabase
         .from('transactions')
@@ -74,9 +68,6 @@ export default function PurchasesPage() {
         .eq('type', 'input')
         .in('purchase_id', purchaseIds);
       
-      const paymentMap: Record<string, number> = {};
-      const invoiceMap: Record<string, number> = {};
-      
       payments?.forEach(p => {
         paymentMap[p.purchase_id] = (paymentMap[p.purchase_id] || 0) + Math.abs(parseFloat(p.amount));
       });
@@ -84,25 +75,24 @@ export default function PurchasesPage() {
         invoiceMap[i.purchase_id] = (invoiceMap[i.purchase_id] || 0) + parseFloat(i.total_amount);
       });
       
-      allData?.forEach(p => {
-        p.paidAmount = paymentMap[p.id] || 0;
-        p.invoicedAmount = invoiceMap[p.id] || 0;
-      });
-      
-      // 计算汇总（基于全部数据）
+      // 计算汇总
       const totalAmount = allData.reduce((sum, p) => sum + parseFloat(p.amount), 0);
       const totalPaid = Object.values(paymentMap).reduce((a, b) => a + b, 0);
       const totalInvoiced = Object.values(invoiceMap).reduce((a, b) => a + b, 0);
       const uniqueSuppliers = new Set(allData.map(p => p.supplier_id).filter(Boolean)).size;
-      
       setSummary({ totalAmount, totalPaid, totalInvoiced, uniqueSuppliers });
     }
     
-    // 然后获取分页数据用于显示
-    let pageQuery = baseQuery;
+    // 获取分页数据
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    const { data: pageData } = await pageQuery.range(from, to).order('purchase_date', { ascending: false });
+    const { data: pageData } = await baseQuery.range(from, to).order('purchase_date', { ascending: false });
+    
+    // 为分页数据补充 paidAmount 和 invoicedAmount
+    pageData?.forEach(p => {
+      p.paidAmount = paymentMap[p.id] || 0;
+      p.invoicedAmount = invoiceMap[p.id] || 0;
+    });
     
     // 前端筛选付款状态和收票状态
     let filteredData = pageData || [];
