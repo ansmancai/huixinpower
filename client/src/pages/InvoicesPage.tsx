@@ -69,6 +69,23 @@ export default function InvoicesPage() {
   } finally {
     setLoading(false);
   }
+  // ========== 添加以下代码 ==========
+  // 加载数据
+  useEffect(() => {
+    loadInvoices();
+  }, [page, type, projectId, status, keyword]);
+
+  // 删除函数
+  const handleDelete = async (id: string, no: string) => {
+    if (!confirm(`确定要删除发票 "${no}" 吗？`)) return;
+    try {
+      await supabase.from('invoices').delete().eq('id', id);
+      loadInvoices();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
+  // ========== 添加结束 ==========
 };
 
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
