@@ -4,7 +4,6 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import ExportButton from '../components/ExportButton';
 import ImportModal from '../components/ImportModal';
-import * as XLSX from 'xlsx';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -33,7 +32,8 @@ export default function TransactionsPage() {
       if (keyword) {
         query = query.or(`remark.ilike.%${keyword}%,payment_method.ilike.%${keyword}%`);
       }
-      if (type !== 'all') {
+      // 类型筛选
+      if (type && type !== 'all') {
         query = query.eq('type', type);
       }
       if (startDate) {
@@ -49,7 +49,7 @@ export default function TransactionsPage() {
       const { data, error, count } = await query.range(from, to).order('date', { ascending: false });
       if (error) throw error;
       
-      // 计算汇总
+      // 计算汇总（基于筛选后的数据）
       const totalReceipt = data?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
       const totalPayment = data?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
       setSummary({ totalReceipt, totalPayment });
@@ -63,10 +63,12 @@ export default function TransactionsPage() {
     }
   };
 
+  // 当 page, type, startDate, endDate 变化时重新加载
   useEffect(() => {
     loadTransactions();
   }, [page, type, startDate, endDate]);
 
+  // 关键词搜索（防抖）
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => { setPage(1); loadTransactions(); }, 300);
@@ -94,8 +96,6 @@ export default function TransactionsPage() {
     check: '支票',
     other: '其他',
   };
-
-  
 
   return (
     <div>
@@ -225,8 +225,7 @@ export default function TransactionsPage() {
         onSuccess={() => { loadTransactions(); setShowImportModal(false); }}
         module="transactions"
         moduleName="收付款"
-       
- />
+      />
     </div>
   );
 }
