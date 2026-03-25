@@ -16,7 +16,7 @@ interface SearchSelectProps {
   disabled?: boolean;
   required?: boolean;
   displayName?: string;
-  initialOptions?: Option[];  // 👈 新增：初始选项列表
+  initialOptions?: Option[];
 }
 
 export default function SearchSelect({
@@ -28,7 +28,7 @@ export default function SearchSelect({
   disabled = false,
   required = false,
   displayName = '',
-  initialOptions = [],  // 👈 新增
+  initialOptions = [],
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<Option[]>(initialOptions);
@@ -51,7 +51,6 @@ export default function SearchSelect({
   useEffect(() => {
     if (initialOptions.length > 0) {
       setOptions(initialOptions);
-      // 如果有 value，尝试从 initialOptions 中找名称
       const found = initialOptions.find(opt => opt.id === value);
       if (found && !displayName) {
         setSelectedLabel(found.name);
@@ -101,6 +100,11 @@ export default function SearchSelect({
     setIsOpen(false);
   };
 
+  const handleClear = () => {
+    onChange('', { id: '', name: '' });
+    setSelectedLabel('');
+  };
+
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
       <div
@@ -112,14 +116,28 @@ export default function SearchSelect({
         <span className={selectedLabel ? 'text-gray-900' : 'text-gray-400'}>
           {selectedLabel || placeholder}
         </span>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <div className="flex items-center gap-1">
+          {value && selectedLabel && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              className="text-gray-400 hover:text-gray-600 text-sm px-1"
+            >
+              ✕
+            </button>
+          )}
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
 
       {isOpen && !disabled && (
@@ -136,21 +154,35 @@ export default function SearchSelect({
           </div>
           {loading ? (
             <div className="px-4 py-2 text-sm text-gray-500 text-center">加载中...</div>
-          ) : options.length === 0 ? (
-            <div className="px-4 py-2 text-sm text-gray-500 text-center">暂无数据</div>
           ) : (
-            options.map((option) => (
+            <>
+              {/* 不关联选项 */}
               <div
-                key={option.id}
-                onClick={() => handleSelect(option)}
-                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 text-sm ${
-                  value === option.id ? 'bg-blue-50 text-blue-600' : 'text-gray-900'
-                }`}
+                onClick={() => {
+                  handleClear();
+                  setIsOpen(false);
+                }}
+                className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-sm text-gray-500 border-b"
               >
-                {option.name}
-                {option.code && <span className="text-gray-400 text-xs ml-2">({option.code})</span>}
+                不关联
               </div>
-            ))
+              {options.length === 0 ? (
+                <div className="px-4 py-2 text-sm text-gray-500 text-center">暂无数据</div>
+              ) : (
+                options.map((option) => (
+                  <div
+                    key={option.id}
+                    onClick={() => handleSelect(option)}
+                    className={`px-4 py-2 cursor-pointer hover:bg-blue-50 text-sm ${
+                      value === option.id ? 'bg-blue-50 text-blue-600' : 'text-gray-900'
+                    }`}
+                  >
+                    {option.name}
+                    {option.code && <span className="text-gray-400 text-xs ml-2">({option.code})</span>}
+                  </div>
+                ))
+              )}
+            </>
           )}
         </div>
       )}
