@@ -1,123 +1,94 @@
-import * as XLSX from 'xlsx';
-import { supabase, logOperation } from '../api/client';
-
-// 定义所有需要备份的表
-const TABLES = ['projects', 'suppliers', 'purchases', 'transactions', 'invoices'];
-
-// 表名映射到中文名称
-const TABLE_NAMES_CN: Record<string, string> = {
-  projects: '项目',
-  suppliers: '供应商',
-  purchases: '采购',
-  transactions: '收付款',
-  invoices: '发票',
-};
-
-// 导出所有数据为 Excel（多 Sheet）
+// 备份所有数据
 export async function backupAllData() {
   try {
     const workbook = XLSX.utils.book_new();
-    let totalCount = 0;
     
-    for (const table of TABLES) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error(`导出 ${table} 失败:`, error);
-        continue;
-      }
-      
-      if (data && data.length > 0) {
-        totalCount += data.length;
-        const formattedData = data.map(row => {
-          const newRow: any = {};
-          for (const [key, value] of Object.entries(row)) {
-            if (value instanceof Date) {
-              newRow[key] = value.toLocaleString();
-            } else if (typeof value === 'string' && value.includes('T') && value.includes('Z')) {
-              newRow[key] = new Date(value).toLocaleString();
-            } else {
-              newRow[key] = value;
-            }
-          }
-          return newRow;
-        });
-        
-        const worksheet = XLSX.utils.json_to_sheet(formattedData);
-        if (formattedData.length > 0) {
-          const cols = Object.keys(formattedData[0]).map(key => ({ wch: Math.min(key.length + 2, 30) }));
-          worksheet['!cols'] = cols;
-        }
-        XLSX.utils.book_append_sheet(workbook, worksheet, TABLE_NAMES_CN[table]);
-      } else {
-        const worksheet = XLSX.utils.aoa_to_sheet([[`暂无${TABLE_NAMES_CN[table]}数据`]]);
-        XLSX.utils.book_append_sheet(workbook, worksheet, TABLE_NAMES_CN[table]);
-      }
+    // 1. 项目表 - 直接导出，字段已经是中文
+    const { data: projects } = await supabase.from('projects').select('*');
+    if (projects?.length) {
+      const sheet = XLSX.utils.json_to_sheet(projects);
+      XLSX.utils.book_append_sheet(workbook, sheet, '项目');
     }
     
-    const now = new Date();
-    const filename = `电力财务系统备份_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    // 2. 供应商表
+    const { data: suppliers } = await supabase.from('suppliers').select('*');
+    if (suppliers?.length) {
+      const sheet = XLSX.utils.json_to_sheet(suppliers);
+      XLSX.utils.book_append_sheet(workbook, sheet, '供应商');
+    }
     
-    // 记录日志
-    await logOperation('backup', 'all', { tables: TABLES, count: totalCount });
+    // 3. 采购表 - 需要转换 project_id 和 supplier_id 为名称
+    const { data: purchases } = await supabase.from('purchases').select('*');
+    const { data: projectsMap } = await supabase.from('projects').select('id, name');
+    const { data: suppliersMap } = await supabase.from('suppliers').select('id, name');
+    
+    const projectNameMap = Object.fromEntries(projectsMap?.map(p => [p.id, p.name]) || []);
+    const supplierNameMap = Object.fromEntries(suppliersMap?.map(s => [s.id, s.name]) || []);
+    
+    const purchasesFormatted = purchases?.map(p => ({
+      采购单号: p.purchase_no,
+      物流状态: p.logistics_status === 'arrived' ? '已到货' : p.logistics_status === 'ordered' ? '已下单' : '待发货',
+      所属项目: projectNameMap[p.project_id] || p.project_id,
+      供应商: supplierNameMap[p.supplier_id] || p.supplier_id,
+      采购日期: p.purchase_date,
+      采购金额: p.amount,
+      采购内容: p.content,
+      备注: p.remark,
+    }));
+    if (purchasesFormatted?.length) {
+      const sheet = XLSX.utils.json_to_sheet(purchasesFormatted);
+      XLSX.utils.book_append_sheet(workbook, sheet, '采购');
+    }
+    
+    // 4. 收付款表 - 需要转换项目、供应商、采购
+    const { data: transactions } = await supabase.from('transactions').select('*');
+    const { data: purchasesMap } = await supabase.from('purchases').select('id, purchase_no');
+    const purchaseNoMap = Object.fromEntries(purchasesMap?.map(p => [p.id, p.purchase_no]) || []);
+    
+    const transactionsFormatted = transactions?.map(t => ({
+      日期: t.date,
+      类型: t.type === 'receipt' ? '收款' : '付款',
+      金额: t.amount,
+      支付方式: t.payment_method === 'bank' ? '银行转账' : 
+                t.payment_method === 'cash' ? '现金' :
+                t.payment_method === 'wechat' ? '微信' :
+                t.payment_method === 'alipay' ? '支付宝' : t.payment_method,
+      关联项目: projectNameMap[t.project_id] || t.project_id,
+      关联供应商: supplierNameMap[t.supplier_id] || t.supplier_id,
+      关联采购: purchaseNoMap[t.purchase_id] || t.purchase_id,
+      备注: t.remark,
+    }));
+    if (transactionsFormatted?.length) {
+      const sheet = XLSX.utils.json_to_sheet(transactionsFormatted);
+      XLSX.utils.book_append_sheet(workbook, sheet, '收付款');
+    }
+    
+    // 5. 发票表 - 需要转换项目、供应商、采购
+    const { data: invoices } = await supabase.from('invoices').select('*');
+    const invoicesFormatted = invoices?.map(i => ({
+      发票类型: i.type === 'input' ? '进项' : '销项',
+      发票号码: i.invoice_no,
+      金额: i.amount,
+      税额: i.tax_amount,
+      总金额: i.total_amount,
+      开票日期: i.invoice_date,
+      对方名称: supplierNameMap[i.supplier_id] || i.supplier_id,
+      所属项目: projectNameMap[i.project_id] || i.project_id,
+      关联采购: purchaseNoMap[i.purchase_id] || i.purchase_id,
+      状态: i.status === 'paid' ? '已付款' : i.status === 'partial' ? '部分付款' : i.status === 'cancelled' ? '作废' : '未付款',
+      备注: i.remark,
+    }));
+    if (invoicesFormatted?.length) {
+      const sheet = XLSX.utils.json_to_sheet(invoicesFormatted);
+      XLSX.utils.book_append_sheet(workbook, sheet, '发票');
+    }
+    
+    const filename = `电力财务系统备份_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
+    XLSX.writeFile(workbook, filename);
     
     return { success: true, message: '备份成功' };
   } catch (error: any) {
     console.error('备份失败:', error);
-    return { success: false, message: error.message || '备份失败' };
-  }
-}
-
-// 导出单个模块数据
-export async function exportModuleData(
-  module: string,
-  filter?: Record<string, any>,
-  fileName?: string
-) {
-  try {
-    let query = supabase.from(module).select('*');
-    
-    if (filter) {
-      Object.entries(filter).forEach(([key, value]) => {
-        if (value && value !== 'all') {
-          query = query.eq(key, value);
-        }
-      });
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    
-    const formattedData = (data || []).map(row => {
-      const newRow: any = {};
-      for (const [key, value] of Object.entries(row)) {
-        if (value instanceof Date) {
-          newRow[key] = value.toLocaleString();
-        } else if (typeof value === 'string' && value.includes('T') && value.includes('Z')) {
-          newRow[key] = new Date(value).toLocaleString();
-        } else {
-          newRow[key] = value;
-        }
-      }
-      return newRow;
-    });
-    
-    const worksheet = XLSX.utils.json_to_sheet(formattedData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, TABLE_NAMES_CN[module] || module);
-    
-    const finalFileName = fileName || `${TABLE_NAMES_CN[module] || module}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
-    XLSX.writeFile(workbook, finalFileName);
-    
-    await logOperation('export', module, { filter, count: formattedData.length });
-    
-    return { success: true, message: '导出成功' };
-  } catch (error: any) {
-    console.error('导出失败:', error);
-    return { success: false, message: error.message || '导出失败' };
+    return { success: false, message: error.message };
   }
 }
