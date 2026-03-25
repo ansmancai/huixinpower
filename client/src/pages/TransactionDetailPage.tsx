@@ -3,6 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import * as XLSX from 'xlsx';
+import PaymentRequestModal from '../components/PaymentRequestModal';
+
+const [showPaymentModal, setShowPaymentModal] = useState(false);
 
 export default function TransactionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -182,14 +185,14 @@ export default function TransactionDetailPage() {
         </div>
         <div className="flex gap-2">
           {transaction.type === 'payment' && (
-            <button
-              onClick={generatePaymentRequest}
-              disabled={generating}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {generating ? '生成中...' : '📄 生成付款申请单'}
-            </button>
-          )}
+  <button
+    onClick={() => setShowPaymentModal(true)}
+    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+  >
+    📄 生成付款申请单
+  </button>
+       
+)}
           {canEdit && (
             <button
               onClick={() => navigate(`/transactions/${id}/edit`)}
@@ -207,6 +210,15 @@ export default function TransactionDetailPage() {
             </button>
           )}
         </div>
+        <PaymentRequestModal
+      isOpen={showPaymentModal}
+      onClose={() => setShowPaymentModal(false)}
+      transaction={transaction}
+      project={project}
+      supplier={supplier}
+      purchase={purchase}
+      user={user}
+    /> 
       </div>
 
       {/* 交易基本信息 */}
