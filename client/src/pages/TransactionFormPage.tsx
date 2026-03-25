@@ -270,6 +270,7 @@ export default function TransactionFormPage() {
               }}
               onSearch={searchProjects}
               placeholder="选择项目"
+              displayName={selectedProjectName} 
             />
             {selectedProjectName && (
               <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>
@@ -286,6 +287,7 @@ export default function TransactionFormPage() {
               }}
               onSearch={searchSuppliers}
               placeholder="选择供应商"
+               displayName={selectedSupplierName}
             />
             {selectedSupplierName && (
               <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>

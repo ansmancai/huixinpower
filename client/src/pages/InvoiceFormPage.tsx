@@ -337,6 +337,7 @@ export default function InvoiceFormPage() {
               }}
               onSearch={searchProjects}
               placeholder="选择项目"
+              displayName={selectedProjectName}  
             />
           </div>
           
@@ -391,6 +392,7 @@ export default function InvoiceFormPage() {
               }}
               onSearch={searchSuppliers}
               placeholder="如对方是系统供应商，可选择关联"
+              displayName={selectedSupplierName} 
             />
           </div>
           

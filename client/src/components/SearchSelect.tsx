@@ -15,6 +15,7 @@ interface SearchSelectProps {
   className?: string;
   disabled?: boolean;
   required?: boolean;
+  displayName?: string;  // 👈 新增：用于显示已选中的名称
 }
 
 export default function SearchSelect({
@@ -25,16 +26,25 @@ export default function SearchSelect({
   className = '',
   disabled = false,
   required = false,
+  displayName = '',  // 👈 新增
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<Option[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedLabel, setSelectedLabel] = useState('');
+  const [selectedLabel, setSelectedLabel] = useState(displayName);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<NodeJS.Timeout>();
 
-  // 加载选项
+  // 当外部传入的 displayName 变化时更新
+  useEffect(() => {
+    if (displayName) {
+      setSelectedLabel(displayName);
+    } else if (!value) {
+      setSelectedLabel('');
+    }
+  }, [displayName, value]);
+
   const loadOptions = async (keyword: string) => {
     setLoading(true);
     try {
@@ -48,24 +58,18 @@ export default function SearchSelect({
     }
   };
 
-  // 防抖搜索
   useEffect(() => {
-    if (searchTimer.current) {
-      clearTimeout(searchTimer.current);
-    }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       if (isOpen) {
         loadOptions(searchKeyword);
       }
     }, 300);
     return () => {
-      if (searchTimer.current) {
-        clearTimeout(searchTimer.current);
-      }
+      if (searchTimer.current) clearTimeout(searchTimer.current);
     };
   }, [searchKeyword, isOpen]);
 
-  // 点击外部关闭
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -76,32 +80,8 @@ export default function SearchSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 获取选中项的显示文本
-  useEffect(() => {
-    if (value && options.length > 0) {
-      const selected = options.find(opt => opt.id === value);
-      if (selected) {
-        setSelectedLabel(selected.name);
-      }
-    } else if (value) {
-      // 如果 options 中没有，尝试单独加载
-      const fetchSelected = async () => {
-        const results = await onSearch('');
-        const selected = results.find(opt => opt.id === value);
-        if (selected) {
-          setSelectedLabel(selected.name);
-        } else {
-          setSelectedLabel(value);
-        }
-      };
-      fetchSelected();
-    } else {
-      setSelectedLabel('');
-    }
-  }, [value, options]);
-
   const handleSelect = (option: Option) => {
-    onChange(option.id, option);  // 传递完整对象
+    onChange(option.id, option);
     setSelectedLabel(option.name);
     setSearchKeyword('');
     setIsOpen(false);
