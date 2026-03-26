@@ -3,6 +3,10 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// 设置 PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -97,7 +101,6 @@ export default function InvoiceFormPage() {
               remark: data.remark || '',
             });
             
-            // 加载项目名称
             if (data.project_id) {
               const { data: project } = await supabase
                 .from('projects')
@@ -107,14 +110,12 @@ export default function InvoiceFormPage() {
               if (project) {
                 setProjectOptions([{ id: project.id, name: project.name }]);
                 setSelectedProjectName(project.name);
-                // 销项发票：对方名称用项目甲方
                 if (data.type === 'output' && project.client) {
                   setFormData(prev => ({ ...prev, supplier_name: project.client }));
                 }
               }
             }
             
-            // 加载供应商名称（进项用）
             if (data.supplier_id) {
               const { data: supplier } = await supabase
                 .from('suppliers')
@@ -127,7 +128,6 @@ export default function InvoiceFormPage() {
               }
             }
             
-            // 加载采购信息（进项用）
             if (data.purchase_id) {
               const { data: purchase } = await supabase
                 .from('purchases')
@@ -154,24 +154,66 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // PDF 解析（暂保留）
   // PDF 解析
-const parsePDF = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await fetch('/api/parse-invoice', {
-    method: 'POST',
-    body: formData,
-  });
-  
-  const result = await response.json();
-  console.log('解析结果:', result);
-  if (!response.ok) throw new Error(result.error);
-  return result;
-};
-  
-  
+  const parsePDF = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      fullText += pageText + '\n';
+    }
+    
+    return {
+      invoice_no: extractInvoiceNo(fullText),
+      amount: extractAmount(fullText),
+      tax: extractTax(fullText),
+      date: extractDate(fullText),
+      seller: extractSeller(fullText),
+      buyer: extractBuyer(fullText),
+    };
+  };
+
+  // 提取函数
+  function extractInvoiceNo(text: string) {
+    const match = text.match(/发票号码[：:]\s*(\d+)/);
+    return match ? match[1] : '';
+  }
+
+  function extractAmount(text: string) {
+    const match = text.match(/金额[（(]小写[）)]|[：:]\s*([\d,]+\.?\d*)/);
+    if (match && match[1]) return match[1].replace(/,/g, '');
+    const match2 = text.match(/(\d+\.?\d{2})(?=\s*元)/);
+    return match2 ? match2[1] : '';
+  }
+
+  function extractTax(text: string) {
+    const match = text.match(/税额[：:]\s*([\d,]+\.?\d*)/);
+    return match ? match[1].replace(/,/g, '') : '';
+  }
+
+  function extractDate(text: string) {
+    const match = text.match(/开票日期[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)/);
+    if (match) {
+      return match[1].replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '');
+    }
+    const match2 = text.match(/(\d{4}-\d{2}-\d{2})/);
+    return match2 ? match2[1] : '';
+  }
+
+  function extractSeller(text: string) {
+    const match = text.match(/销售方[：:][\s\S]*?名称[：:]\s*([^\n\r]+)/);
+    return match ? match[1].trim() : '';
+  }
+
+  function extractBuyer(text: string) {
+    const match = text.match(/购买方[：:][\s\S]*?名称[：:]\s*([^\n\r]+)/);
+    return match ? match[1].trim() : '';
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,7 +288,6 @@ const parsePDF = async (file: File) => {
     }
   };
 
-  // 搜索项目
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
@@ -256,7 +297,6 @@ const parsePDF = async (file: File) => {
     return data || [];
   };
 
-  // 搜索供应商（进项用）
   const searchSuppliers = async (keyword: string) => {
     const { data } = await supabase
       .from('suppliers')
@@ -266,7 +306,6 @@ const parsePDF = async (file: File) => {
     return data || [];
   };
 
-  // 根据项目搜索采购单（进项用）
   const searchPurchasesByProject = async (projectId: string, keyword: string) => {
     if (!projectId) return [];
     let query = supabase
@@ -288,13 +327,11 @@ const parsePDF = async (file: File) => {
     })) || [];
   };
 
-  // 包装 SearchSelect 的 onSearch 函数（进项用）
   const handlePurchaseSearch = async (keyword: string) => {
     if (!formData.project_id) return [];
     return searchPurchasesByProject(formData.project_id, keyword);
   };
 
-  // 选择项目时的处理
   const handleProjectChange = async (projectId: string) => {
     setFormData(prev => ({ ...prev, project_id: projectId, purchase_id: '', supplier_id: '' }));
     setSelectedProjectName('');
@@ -307,7 +344,6 @@ const parsePDF = async (file: File) => {
       if (project) {
         setSelectedProjectName(project.name);
         setProjectOptions([{ id: project.id, name: project.name }]);
-        // 销项发票：自动填充对方名称为项目甲方
         if (formData.type === 'output' && project.client) {
           setFormData(prev => ({ ...prev, supplier_name: project.client }));
         }
@@ -325,7 +361,6 @@ const parsePDF = async (file: File) => {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
-      {/* PDF 上传区域 */}
       {!isEdit && (
         <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
           <label className="block text-sm font-medium mb-2">📄 上传 PDF 发票（可选，自动识别填写）</label>
@@ -341,7 +376,7 @@ const parsePDF = async (file: File) => {
             {uploading && <span className="text-blue-600">解析中...</span>}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            支持电子发票 PDF，上传后自动提取信息（功能完善中）
+            支持电子发票 PDF，上传后自动提取信息
           </p>
         </div>
       )}
@@ -360,7 +395,6 @@ const parsePDF = async (file: File) => {
                   type: newType,
                   purchase_id: '',
                   supplier_id: '',
-                  // 销项时清空采购和供应商，进项时清空对方名称（后续会重新填）
                   supplier_name: newType === 'input' ? '' : formData.supplier_name,
                 });
               }}
@@ -424,7 +458,6 @@ const parsePDF = async (file: File) => {
             />
           </div>
           
-          {/* 所属项目 */}
           <div>
             <label className="block text-sm font-medium mb-1">所属项目 {formData.type === 'output' && '*'}</label>
             <SearchSelect
@@ -440,7 +473,6 @@ const parsePDF = async (file: File) => {
             )}
           </div>
           
-          {/* 进项：关联采购 */}
           {formData.type === 'input' && (
             <div>
               <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
@@ -466,7 +498,6 @@ const parsePDF = async (file: File) => {
             </div>
           )}
           
-          {/* 对方名称 */}
           <div>
             <label className="block text-sm font-medium mb-1">对方名称 *</label>
             <input
@@ -479,7 +510,6 @@ const parsePDF = async (file: File) => {
             />
           </div>
           
-          {/* 进项：关联供应商（可选） */}
           {formData.type === 'input' && (
             <div>
               <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
