@@ -78,7 +78,7 @@ export default function Layout() {
             </div>
             <div>
               <h1 className="text-white text-lg font-semibold tracking-wide">汇信电力</h1>
-              <p className="text-gray-400 text-xs">财务管理系统 @ 菜菜1.1版</p>
+              <p className="text-gray-400 text-s">财务管理系统 @ 菜菜1.1版</p>
             </div>
           </div>
         </div>
