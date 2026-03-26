@@ -24,6 +24,36 @@ export default function SupplierFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
+  // 自动生成供应商编号
+  useEffect(() => {
+    const generateSupplierCode = async () => {
+      // 获取所有以 GYS 开头的编号
+      const { data } = await supabase
+        .from('suppliers')
+        .select('code')
+        .like('code', 'GYS%')
+        .order('code', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        const lastCode = data[0].code;
+        const match = lastCode.match(/GYS(\d+)/);
+        if (match) {
+          const nextNum = parseInt(match[1]) + 1;
+          setFormData(prev => ({ ...prev, code: `GYS${nextNum.toString().padStart(4, '0')}` }));
+        } else {
+          setFormData(prev => ({ ...prev, code: 'GYS0001' }));
+        }
+      } else {
+        setFormData(prev => ({ ...prev, code: 'GYS0001' }));
+      }
+    };
+    
+    if (!isEdit) {
+      generateSupplierCode();
+    }
+  }, [isEdit]);
+
   useEffect(() => {
     if (isEdit && canEdit) {
       const loadSupplier = async () => {
@@ -33,7 +63,6 @@ export default function SupplierFormPage() {
             .select('*')
             .eq('id', id)
             .single();
-          
           if (error) throw error;
           if (data) {
             setFormData({
@@ -127,8 +156,11 @@ export default function SupplierFormPage() {
               required
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border rounded-lg"
             />
+            {!isEdit && (
+              <p className="text-xs text-gray-500 mt-1">系统自动推荐（GYS + 4位数字），可手动修改</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">供应商名称 *</label>

@@ -24,6 +24,37 @@ export default function ProjectFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
+  // 自动生成项目编号
+  useEffect(() => {
+    const generateProjectCode = async () => {
+      const currentYear = new Date().getFullYear().toString();
+      // 获取今年最大的编号
+      const { data } = await supabase
+        .from('projects')
+        .select('code')
+        .like('code', `HX${currentYear}%`)
+        .order('code', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        const lastCode = data[0].code;
+        const match = lastCode.match(/HX(\d{4})(\d{3})/);
+        if (match && match[1] === currentYear) {
+          const nextNum = parseInt(match[2]) + 1;
+          setFormData(prev => ({ ...prev, code: `HX${currentYear}${nextNum.toString().padStart(3, '0')}` }));
+        } else {
+          setFormData(prev => ({ ...prev, code: `HX${currentYear}001` }));
+        }
+      } else {
+        setFormData(prev => ({ ...prev, code: `HX${currentYear}001` }));
+      }
+    };
+    
+    if (!isEdit) {
+      generateProjectCode();
+    }
+  }, [isEdit]);
+
   useEffect(() => {
     if (isEdit && canEdit) {
       const loadProject = async () => {
@@ -33,7 +64,6 @@ export default function ProjectFormPage() {
             .select('*')
             .eq('id', id)
             .single();
-          
           if (error) throw error;
           if (data) {
             setFormData({
@@ -130,8 +160,11 @@ export default function ProjectFormPage() {
               required
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border rounded-lg"
             />
+            {!isEdit && (
+              <p className="text-xs text-gray-500 mt-1">系统自动推荐（HX+年份+3位流水号），可手动修改</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">状态</label>
