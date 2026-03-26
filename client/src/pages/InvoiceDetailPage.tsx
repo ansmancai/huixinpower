@@ -190,6 +190,19 @@ export default function InvoiceDetailPage() {
             <p className="mt-1 text-gray-700">{invoice.remark}</p>
           </div>
         )}
+        {invoice.file_path && (
+  <div className="mt-4 pt-4 border-t">
+    <p className="text-sm text-gray-500">附件</p>
+    <a 
+      href={supabase.storage.from('invoices').getPublicUrl(invoice.file_path).data.publicUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:underline mt-1 inline-block"
+    >
+      📄 查看发票文件
+    </a>
+  </div>
+)}
       </div>
     </div>
   );

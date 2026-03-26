@@ -36,7 +36,7 @@ export default function InvoicesPage() {
   setLoading(true);
   try {
     // 构建基础查询（不带分页）
-    let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name)', { count: 'exact' });
+    let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name), file_path', { count: 'exact' });
     
     if (keyword) {
       const { data: matchedProjects } = await supabase.from('projects').select('id').ilike('name', `%${keyword}%`);
@@ -156,35 +156,54 @@ export default function InvoicesPage() {
                   <th className="px-4 py-3 text-left">开票日期</th>
                   <th className="px-4 py-3 text-left">对方名称</th>
                   <th className="px-4 py-3 text-left">所属项目</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-500">附件</th>
                   <th className="px-4 py-3 text-center">状态</th>
                   <th className="px-4 py-3 text-center">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {invoices.map(i => (
-                  <tr key={i.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
-                    <td className="px-4 py-3"><Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">{i.invoice_no}</Link></td>
-                    <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
-                    <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm">{i.suppliers?.name || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : i.status === 'partial' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {statusMap[i.status] || i.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-2">
-                        <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm">查看</Link>
-                        {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
-                        {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm">删除</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+               {invoices.map(i => (
+  <tr key={i.id} className="hover:bg-gray-50">
+    <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
+    <td className="px-4 py-3">
+      <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
+        {i.invoice_no}
+      </Link>
+    </td>
+    <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
+    <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
+    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
+    <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
+    <td className="px-4 py-3 text-sm">{i.suppliers?.name || '-'}</td>
+    <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
+    {/* 👇 附件列 */}
+    <td className="px-4 py-3 text-center">
+      {i.file_path ? (
+        <a 
+          href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 text-lg"
+        >
+          📎
+        </a>
+      ) : '-'}
+    </td>
+    {/* 👆 附件列 */}
+    <td className="px-4 py-3 text-center">
+      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
+        {statusMap[i.status] || i.status}
+      </span>
+    </td>
+    <td className="px-4 py-3 text-center">
+      <div className="flex justify-center gap-2">
+        <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm">查看</Link>
+        {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
+        {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm">删除</button>}
+      </div>
+    </td>
+  </tr>
+))} 
               </tbody>
             </table>
           </div>
