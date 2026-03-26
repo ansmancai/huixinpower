@@ -156,8 +156,18 @@ export default function InvoiceFormPage() {
 
   // PDF 解析（暂保留）
   const parsePDF = async (file: File) => {
-    return {};
-  };
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch('/api/parse-invoice', {
+    method: 'POST',
+    body: formData,
+  });
+  
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error);
+  return result;
+};
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
