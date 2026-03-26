@@ -256,15 +256,20 @@ export default function InvoiceFormPage() {
 };
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!canEdit) return;
   setLoading(true);
   
   try {
+    console.log('=== 开始保存 ===');
+    console.log('上传的文件:', uploadedFile);
+    
     let filePath = null;
     if (!isEdit && uploadedFile) {
+      console.log('开始上传文件...');
       filePath = await uploadFile(uploadedFile);
+      console.log('上传成功, 路径:', filePath);
     }
     
     const submitData: any = {
@@ -280,27 +285,34 @@ export default function InvoiceFormPage() {
       supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
       status: formData.status,
       remark: formData.remark || null,
-      file_path: filePath,  // 新增
+      file_path: filePath,
       updated_at: new Date().toISOString(),
     };
+    
+    console.log('提交数据:', submitData);
 
     if (isEdit) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('invoices')
         .update(submitData)
-        .eq('id', id);
+        .eq('id', id)
+        .select();
+      console.log('更新结果:', { data, error });
       if (error) throw error;
     } else {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('invoices')
         .insert([{
           ...submitData,
           id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
-        }]);
+        }])
+        .select();
+      console.log('插入结果:', { data, error });
       if (error) throw error;
     }
     
+    console.log('保存成功');
     navigate('/invoices');
   } catch (error: any) {
     console.error('保存失败:', error);
