@@ -18,6 +18,7 @@ import TransactionFormPage from './pages/TransactionFormPage';
 import InvoicesPage from './pages/InvoicesPage';
 import InvoiceDetailPage from './pages/InvoiceDetailPage';
 import InvoiceFormPage from './pages/InvoiceFormPage';
+import UsersPage from './pages/UsersPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -62,6 +63,9 @@ function App() {
         <Route path="invoices/new" element={<InvoiceFormPage />} />
         <Route path="invoices/:id" element={<InvoiceDetailPage />} />
         <Route path="invoices/:id/edit" element={<InvoiceFormPage />} />
+
+        {/* 账号管理 */}
+        <Route path="users" element={<UsersPage />} />
       </Route>
     </Routes>
   );

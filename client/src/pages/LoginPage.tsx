@@ -87,7 +87,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>演示账号：admin@example.com / admin123</p>
+          <p>演示账号：不告诉你</p>
           <p className="mt-1">角色权限：admin(管理员) / finance(财务) / boss(老板) / viewer(浏览人)</p>
         </div>
       </div>
