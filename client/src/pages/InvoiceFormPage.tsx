@@ -37,6 +37,7 @@ export default function InvoiceFormPage() {
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [currentFilePath, setCurrentFilePath] = useState('');
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -100,9 +101,11 @@ export default function InvoiceFormPage() {
               supplier_name: data.supplier_name || '',
               supplier_id: data.supplier_id || '',
               status: data.status || 'unpaid',
-              remark: data.remark || '',
+              remark: data.remark || '',              
             });
-            
+           
+            if (data.file_path) setCurrentFilePath(data.file_path);
+
             if (data.project_id) {
               const { data: project } = await supabase
                 .from('projects')
@@ -262,14 +265,15 @@ const handleSubmit = async (e: React.FormEvent) => {
   setLoading(true);
   
   try {
-    console.log('=== 开始保存 ===');
-    console.log('上传的文件:', uploadedFile);
+    let filePath = currentFilePath;
     
-    let filePath = null;
-    if (!isEdit && uploadedFile) {
-      console.log('开始上传文件...');
+    // 如果上传了新文件
+    if (uploadedFile) {
+      // 如果有旧文件，先删除
+      if (currentFilePath) {
+        await supabase.storage.from('invoices').remove([currentFilePath]);
+      }
       filePath = await uploadFile(uploadedFile);
-      console.log('上传成功, 路径:', filePath);
     }
     
     const submitData: any = {
@@ -288,31 +292,24 @@ const handleSubmit = async (e: React.FormEvent) => {
       file_path: filePath,
       updated_at: new Date().toISOString(),
     };
-    
-    console.log('提交数据:', submitData);
 
     if (isEdit) {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('invoices')
         .update(submitData)
-        .eq('id', id)
-        .select();
-      console.log('更新结果:', { data, error });
+        .eq('id', id);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('invoices')
         .insert([{
           ...submitData,
           id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
-        }])
-        .select();
-      console.log('插入结果:', { data, error });
+        }]);
       if (error) throw error;
     }
     
-    console.log('保存成功');
     navigate('/invoices');
   } catch (error: any) {
     console.error('保存失败:', error);
@@ -321,7 +318,6 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(false);
   }
 };
-
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
@@ -395,27 +391,35 @@ const handleSubmit = async (e: React.FormEvent) => {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
-      {!isEdit && (
-  <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
-    <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
-    <div className="flex items-center gap-3">
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept=".pdf"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) setUploadedFile(file);
-        }}
-        className="flex-1"
-      />
-      {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
-    </div>
-    <p className="text-xs text-gray-500 mt-2">
-      支持 PDF 格式，文件将保存到云端
-    </p>
+      <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
+  <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
+  <div className="flex items-center gap-3">
+    <input
+      type="file"
+      ref={fileInputRef}
+      accept=".pdf"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) setUploadedFile(file);
+      }}
+      className="flex-1"
+    />
+    {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
+    {currentFilePath && !uploadedFile && (
+      <a 
+        href={supabase.storage.from('invoices').getPublicUrl(currentFilePath).data.publicUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 text-sm hover:underline"
+      >
+        查看当前附件
+      </a>
+    )}
   </div>
-)}
+  <p className="text-xs text-gray-500 mt-2">
+    支持 PDF 格式，上传新文件将替换旧文件
+  </p>
+</div>
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
