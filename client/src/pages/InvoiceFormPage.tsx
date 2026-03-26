@@ -165,6 +165,12 @@ export default function InvoiceFormPage() {
   });
   
   const result = await response.json();
+  console.log('解析结果:', result);
+  if (!response.ok) throw new Error(result.error);
+  return result;
+};
+  
+  const result = await response.json();
   if (!response.ok) throw new Error(result.error);
   return result;
 };
