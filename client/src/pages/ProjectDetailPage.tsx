@@ -13,10 +13,11 @@ export default function ProjectDetailPage() {
   const [relatedTransactions, setRelatedTransactions] = useState<any[]>([]);
   const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
   const [stats, setStats] = useState({
-    totalPurchases: 0,
-    totalPaid: 0,
-    totalReceipt: 0,
-    totalInvoiced: 0,
+    totalPurchases: 0,           // 采购总额
+    totalPaid: 0,                // 已付给供应商
+    totalInvoicedFromSupplier: 0, // 从供应商收到的发票（进项）
+    totalReceipt: 0,             // 从客户收到的收款
+    totalInvoiced: 0,            // 开给客户的发票（销项）
   });
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -60,12 +61,24 @@ export default function ProjectDetailPage() {
         setRelatedInvoices(invoicesData || []);
 
         // 计算统计数据
+        // 采购总额
         const totalPurchases = purchasesData?.reduce((sum, p) => sum + parseFloat(p.amount), 0) || 0;
+        // 已付给供应商（付款）
         const totalPaid = transactionsData?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+        // 从客户收到的收款
         const totalReceipt = transactionsData?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
-        const totalInvoiced = invoicesData?.reduce((sum, i) => sum + parseFloat(i.total_amount), 0) || 0;
+        // 开给客户的发票（销项）
+        const totalInvoiced = invoicesData?.filter(i => i.type === 'output').reduce((sum, i) => sum + parseFloat(i.total_amount), 0) || 0;
+        // 从供应商收到的发票（进项）
+        const totalInvoicedFromSupplier = invoicesData?.filter(i => i.type === 'input').reduce((sum, i) => sum + parseFloat(i.total_amount), 0) || 0;
 
-        setStats({ totalPurchases, totalPaid, totalReceipt, totalInvoiced });
+        setStats({
+          totalPurchases,
+          totalPaid,
+          totalInvoicedFromSupplier,
+          totalReceipt,
+          totalInvoiced,
+        });
 
       } catch (error) {
         console.error('加载项目详情失败', error);
@@ -108,10 +121,12 @@ export default function ProjectDetailPage() {
   }
 
   const contractAmount = parseFloat(project.contract_amount || '0');
-  const unpaidAmount = contractAmount - stats.totalReceipt;
-  const uninvoicedAmount = contractAmount - stats.totalInvoiced;
-  const invoicedUnpaid = stats.totalInvoiced - stats.totalReceipt;
-  const unpaidPurchase = stats.totalPurchases - stats.totalPaid;
+  const unpaidFromClient = contractAmount - stats.totalReceipt;
+  const uninvoicedToClient = contractAmount - stats.totalInvoiced;
+  const invoicedUnpaidFromClient = stats.totalInvoiced - stats.totalReceipt;
+  const unpaidToSupplier = stats.totalPurchases - stats.totalPaid;
+  const uninvoicedFromSupplier = stats.totalPurchases - stats.totalInvoicedFromSupplier;
+  const invoicedUnpaidToSupplier = stats.totalInvoicedFromSupplier - stats.totalPaid;
 
   return (
     <div>
@@ -187,43 +202,74 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* 财务统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已收款</p>
-          <p className="text-xl font-bold text-green-600">{formatAmount(stats.totalReceipt)}</p>
+      {/* 财务统计 - 左右分栏 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* 甲方（客户）侧 */}
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <h3 className="text-md font-semibold text-blue-600 mb-3 flex items-center gap-2">
+            <span>🏢</span> 甲方（客户）
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">合同金额</span>
+              <span className="font-medium">{formatAmount(contractAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收款</span>
+              <span className="font-medium text-green-600">{formatAmount(stats.totalReceipt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未收款</span>
+              <span className="font-medium text-red-600">{formatAmount(unpaidFromClient)}</span>
+            </div>
+            <div className="border-t my-2"></div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已开票（销项）</span>
+              <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoiced)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未开票</span>
+              <span className="font-medium text-orange-600">{formatAmount(uninvoicedToClient)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已开票未收款</span>
+              <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidFromClient)}</span>
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已开发票</p>
-          <p className="text-xl font-bold text-blue-600">{formatAmount(stats.totalInvoiced)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已采购</p>
-          <p className="text-xl font-bold text-orange-600">{formatAmount(stats.totalPurchases)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已付款</p>
-          <p className="text-xl font-bold text-red-600">{formatAmount(stats.totalPaid)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已收票</p>
-          <p className="text-xl font-bold text-purple-600">{formatAmount(stats.totalInvoiced)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">未收款</p>
-          <p className="text-xl font-bold text-red-600">{formatAmount(unpaidAmount)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">未开票</p>
-          <p className="text-xl font-bold text-orange-600">{formatAmount(uninvoicedAmount)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">已开票但未收款</p>
-          <p className="text-xl font-bold text-yellow-600">{formatAmount(invoicedUnpaid)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">未付款</p>
-          <p className="text-xl font-bold text-red-600">{formatAmount(unpaidPurchase)}</p>
+
+        {/* 供应商侧 */}
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <h3 className="text-md font-semibold text-red-600 mb-3 flex items-center gap-2">
+            <span>🏭</span> 供应商
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">已采购总额</span>
+              <span className="font-medium text-purple-600">{formatAmount(stats.totalPurchases)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已付款</span>
+              <span className="font-medium text-green-600">{formatAmount(stats.totalPaid)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未付款</span>
+              <span className="font-medium text-red-600">{formatAmount(unpaidToSupplier)}</span>
+            </div>
+            <div className="border-t my-2"></div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收票（进项）</span>
+              <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoicedFromSupplier)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未收票</span>
+              <span className="font-medium text-orange-600">{formatAmount(uninvoicedFromSupplier)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收票未付款</span>
+              <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidToSupplier)}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -388,8 +434,8 @@ export default function ProjectDetailPage() {
                         inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {inv.status === 'paid' ? '已付款' :
-                         inv.status === 'partial' ? '部分付款' : 
+                        {inv.status === 'paid' ? '已付款' : 
+                         inv.status === 'partial' ? '部分付款' :
                          inv.status === 'cancelled' ? '作废' : '未付款'}
                       </span>
                     </td>
