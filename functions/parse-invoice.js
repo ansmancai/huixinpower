@@ -20,12 +20,10 @@ export async function onRequest(context) {
     const data = await pdf(buffer);
     const text = data.text;
     
-    // 提取发票信息
     const info = {
       invoice_no: extractInvoiceNo(text),
       amount: extractAmount(text),
       tax: extractTax(text),
-      total: extractTotal(text),
       date: extractDate(text),
       seller: extractSeller(text),
       buyer: extractBuyer(text),
@@ -54,13 +52,6 @@ function extractAmount(text) {
 function extractTax(text) {
   const match = text.match(/税额[：:]\s*([\d,]+\.?\d*)/);
   return match ? match[1].replace(/,/g, '') : '';
-}
-
-function extractTotal(text) {
-  const match = text.match(/价税合计[（(]小写[）)]|[：:]\s*([\d,]+\.?\d*)/);
-  if (match && match[1]) return match[1].replace(/,/g, '');
-  const match2 = text.match(/(\d+\.?\d{2})(?=\s*元)(?![^价税])/);
-  return match2 ? match2[1] : '';
 }
 
 function extractDate(text) {
