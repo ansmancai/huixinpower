@@ -35,6 +35,8 @@ export default function InvoiceFormPage() {
   const [projectOptions, setProjectOptions] = useState<any[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -239,54 +241,71 @@ export default function InvoiceFormPage() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+  
+  const uploadFile = async (file: File): Promise<string> => {
+  const fileName = `${Date.now()}_${file.name}`;
+  const { data, error } = await supabase.storage
+    .from('invoices')
+    .upload(fileName, file);
+  
+  if (error) throw error;
+  return data.path;
+};
+
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit) return;
-    setLoading(true);
-    
-    try {
-      const submitData: any = {
-        type: formData.type,
-        invoice_no: formData.invoice_no,
-        amount: parseFloat(formData.amount) || 0,
-        tax_amount: formData.tax_amount ? parseFloat(formData.tax_amount) : null,
-        total_amount: parseFloat(formData.total_amount) || 0,
-        invoice_date: formData.invoice_date,
-        project_id: formData.project_id || null,
-        purchase_id: formData.type === 'input' ? (formData.purchase_id || null) : null,
-        supplier_name: formData.supplier_name || null,
-        supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
-        status: formData.status,
-        remark: formData.remark || null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (isEdit) {
-        const { error } = await supabase
-          .from('invoices')
-          .update(submitData)
-          .eq('id', id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('invoices')
-          .insert([{
-            ...submitData,
-            id: crypto.randomUUID(),
-            created_at: new Date().toISOString(),
-          }]);
-        if (error) throw error;
-      }
-      
-      navigate('/invoices');
-    } catch (error: any) {
-      console.error('保存失败:', error);
-      alert(error.message || '保存失败');
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  if (!canEdit) return;
+  setLoading(true);
+  
+  try {
+    let filePath = null;
+    if (!isEdit && uploadedFile) {
+      filePath = await uploadFile(uploadedFile);
     }
-  };
+    
+    const submitData: any = {
+      type: formData.type,
+      invoice_no: formData.invoice_no,
+      amount: parseFloat(formData.amount) || 0,
+      tax_amount: formData.tax_amount ? parseFloat(formData.tax_amount) : null,
+      total_amount: parseFloat(formData.total_amount) || 0,
+      invoice_date: formData.invoice_date,
+      project_id: formData.project_id || null,
+      purchase_id: formData.type === 'input' ? (formData.purchase_id || null) : null,
+      supplier_name: formData.supplier_name || null,
+      supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
+      status: formData.status,
+      remark: formData.remark || null,
+      file_path: filePath,  // 新增
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isEdit) {
+      const { error } = await supabase
+        .from('invoices')
+        .update(submitData)
+        .eq('id', id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('invoices')
+        .insert([{
+          ...submitData,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+        }]);
+      if (error) throw error;
+    }
+    
+    navigate('/invoices');
+  } catch (error: any) {
+    console.error('保存失败:', error);
+    alert(error.message || '保存失败');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
@@ -362,24 +381,26 @@ export default function InvoiceFormPage() {
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
       {!isEdit && (
-        <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
-          <label className="block text-sm font-medium mb-2">📄 上传 PDF 发票（可选，自动识别填写）</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".pdf"
-              onChange={handleFileUpload}
-              disabled={uploading}
-              className="flex-1"
-            />
-            {uploading && <span className="text-blue-600">解析中...</span>}
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            支持电子发票 PDF，上传后自动提取信息
-          </p>
-        </div>
-      )}
+  <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
+    <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
+    <div className="flex items-center gap-3">
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".pdf"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) setUploadedFile(file);
+        }}
+        className="flex-1"
+      />
+      {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
+    </div>
+    <p className="text-xs text-gray-500 mt-2">
+      支持 PDF 格式，文件将保存到云端
+    </p>
+  </div>
+)}
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
