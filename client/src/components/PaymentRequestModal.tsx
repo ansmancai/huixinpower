@@ -20,11 +20,24 @@ export default function PaymentRequestModal({
   purchase,
   user,
 }: PaymentRequestModalProps) {
+  // 生成付款单编号：HX+FB（分包）或SB（设备材料）+年份2位+流水号3位
+  const generatePaymentNo = () => {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    // 根据采购内容判断类型，默认用FB
+    const type = 'FB';
+    return `HX${type}${year}${random}`;
+  };
+
   const [formData, setFormData] = useState({
-    paymentNo: `HXXT${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-    applicationDate: new Date().toLocaleDateString('zh-CN'),
+    paymentNo: generatePaymentNo(),
+    applicationDate: transaction?.date ? new Date(transaction.date).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN'),
     projectName: project?.name || '',
-    purpose: purchase?.content || transaction?.remark || '',
+    purpose: purchase?.content || '',
+    basis: '',  // 付款依据（合同名称/合同号）
+    contactPerson: project?.client || '',
+    contactPhone: '',
     amount: transaction?.amount ? Math.abs(parseFloat(transaction.amount)) : 0,
     paymentMethod: transaction?.payment_method === 'bank' ? '银行转账' : 
                     transaction?.payment_method === 'cash' ? '现金' :
@@ -34,44 +47,15 @@ export default function PaymentRequestModal({
     supplierName: supplier?.name || '',
     supplierAccount: supplier?.account || '',
     supplierBank: supplier?.bank || '',
+    invoiceStatus: '未开票',
     remark: transaction?.remark || '',
     applicant: user?.name || '',
+    finance: '',
+    approver: '',
   });
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const generateExcel = () => {
-    const workbook = XLSX.utils.book_new();
-    
-    // 构建数据数组（按 Excel 布局）
-    const data = [
-      ['广东汇信电力建设有限公司', '', '', '', '', ''],
-      ['付款申请单', '', '', '', '', '编号规则：HX+FB（分包）或SB（设备材料）+年份2位+流水号3位'],
-      ['', '', '', '工程名称：', formData.projectName, ''],
-      ['付款单编号：', formData.paymentNo, '', '申请日期：', formData.applicationDate, ''],
-      ['款项用途', formData.purpose, '', '', '', ''],
-      ['付款依据', '', '', '项目联系人', '', ''],
-      ['', '', '', '联系电话', '', ''],
-      ['本次申请付款金额', `人民币（大写）：${amountToChinese(formData.amount)}`, '', `人民币（小写）：`, `${formData.amount}`, ''],
-      ['支付方式', formData.paymentMethod === '银行转账' ? 'þ银行转账' : 
-                   formData.paymentMethod === '现金' ? '□银行转账  þ现金' :
-                   formData.paymentMethod === '支票' ? '□银行转账  □现金  þ支票' : '其他', '', '', '', ''],
-      ['是否含税', formData.includeTax ? '含税' : '不含税', '', '发票类型', '□增值税专用票  □增值税普通票  □其他', ''],
-      ['收款单位', formData.supplierName, '', '发票税率', `${formData.taxRate * 100}%`, ''],
-      ['收款账号', formData.supplierAccount, '', '开票情况', '□已开票   □未开票   □其他', ''],
-      ['收款人开户行', formData.supplierBank, '', '备 注', formData.remark, ''],
-      ['申请人：', formData.applicant, '', '经办人：', '', '财务：', '', '审批：', '', ''],
-    ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(data);
-    // 设置列宽
-    worksheet['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 20 }];
-    XLSX.utils.book_append_sheet(workbook, worksheet, '付款申请单');
-    
-    XLSX.writeFile(workbook, `付款申请单_${formData.paymentNo}.xlsx`);
-    onClose();
   };
 
   // 金额转大写
@@ -119,6 +103,40 @@ export default function PaymentRequestModal({
     return chineseStr;
   };
 
+  const generateExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    
+    const data = [
+      ['广东汇信电力建设有限公司', '', '', '', '', ''],
+      ['付款申请单', '', '', '', '', '编号规则：HX+FB（分包）或SB（设备材料）+年份2位+流水号3位'],
+      ['', '', '', '工程名称：', formData.projectName, ''],
+      ['付款单编号：', formData.paymentNo, '', '申请日期：', formData.applicationDate, ''],
+      ['款项用途', formData.purpose, '', '', '', ''],
+      ['付款依据\n（合同名称/合同号）', formData.basis, '', '项目联系人', formData.contactPerson, ''],
+      ['', '', '', '联系电话', formData.contactPhone, ''],
+      ['本次申请付款金额', `人民币（大写）：${amountToChinese(formData.amount)}`, '', `人民币（小写）：`, formData.amount, ''],
+      ['支付方式', 
+        formData.paymentMethod === '银行转账' ? 'þ银行转账      □现金      □支票      □其他' : 
+        formData.paymentMethod === '现金' ? '□银行转账      þ现金      □支票      □其他' :
+        formData.paymentMethod === '支票' ? '□银行转账      □现金      þ支票      □其他' : '□银行转账      □现金      □支票      þ其他', 
+        '', '', '', ''],
+      ['是否含税', formData.includeTax ? '含税' : '不含税', '', '发票类型', '□增值税专用票  □增值税普通票  □其他', ''],
+      ['收款单位', formData.supplierName, '', '发票税率', `${formData.taxRate * 100}%`, ''],
+      ['收款账号', formData.supplierAccount, '', '开票情况', 
+        formData.invoiceStatus === '已开票' ? 'þ已开票   □未开票   □其他' :
+        formData.invoiceStatus === '未开票' ? '□已开票   þ未开票   □其他' : '□已开票   □未开票   þ其他', ''],
+      ['收款人开户行', formData.supplierBank, '', '备 注', formData.remark, ''],
+      ['申请人：', formData.applicant, '经办人：', '', '财务：', formData.finance, '审批：', formData.approver, ''],
+    ];
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    worksheet['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(workbook, worksheet, '付款申请单');
+    
+    XLSX.writeFile(workbook, `付款申请单_${formData.paymentNo}.xlsx`);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -131,10 +149,11 @@ export default function PaymentRequestModal({
         
         <div className="p-6 overflow-auto flex-1">
           <div className="space-y-4">
-            {/* 第一行：公司名称 */}
+            {/* 公司名称和标题 */}
             <div className="text-center">
-              <h3 className="text-xl font-bold">广东汇信电力建设有限公司</h3>
-              <h4 className="text-lg font-semibold mt-2">付款申请单</h4>
+              <h2 className="text-2xl font-bold">广东汇信电力建设有限公司</h2>
+              <h3 className="text-xl font-semibold mt-2">付款申请单</h3>
+              <p className="text-xs text-gray-500 mt-1">编号规则：HX+FB（分包）或SB（设备材料）+年份2位+流水号3位</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -153,6 +172,18 @@ export default function PaymentRequestModal({
               <div className="col-span-2">
                 <label className="block text-sm font-medium">款项用途</label>
                 <input type="text" value={formData.purpose} onChange={(e) => handleChange('purpose', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium">付款依据（合同名称/合同号）</label>
+                <input type="text" value={formData.basis} onChange={(e) => handleChange('basis', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">项目联系人</label>
+                <input type="text" value={formData.contactPerson} onChange={(e) => handleChange('contactPerson', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">联系电话</label>
+                <input type="text" value={formData.contactPhone} onChange={(e) => handleChange('contactPhone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium">申请金额（小写）</label>
@@ -179,12 +210,20 @@ export default function PaymentRequestModal({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium">收款单位</label>
-                <input type="text" value={formData.supplierName} onChange={(e) => handleChange('supplierName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <label className="block text-sm font-medium">发票类型</label>
+                <select className="w-full px-3 py-2 border rounded-lg">
+                  <option>增值税专用票</option>
+                  <option>增值税普通票</option>
+                  <option>其他</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium">发票税率 (%)</label>
                 <input type="number" step="0.01" value={formData.taxRate * 100} onChange={(e) => handleChange('taxRate', parseFloat(e.target.value) / 100)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">收款单位</label>
+                <input type="text" value={formData.supplierName} onChange={(e) => handleChange('supplierName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium">收款账号</label>
@@ -194,6 +233,14 @@ export default function PaymentRequestModal({
                 <label className="block text-sm font-medium">收款人开户行</label>
                 <input type="text" value={formData.supplierBank} onChange={(e) => handleChange('supplierBank', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
+              <div>
+                <label className="block text-sm font-medium">开票情况</label>
+                <select value={formData.invoiceStatus} onChange={(e) => handleChange('invoiceStatus', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="已开票">已开票</option>
+                  <option value="未开票">未开票</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium">备注</label>
                 <textarea rows={2} value={formData.remark} onChange={(e) => handleChange('remark', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
@@ -201,6 +248,14 @@ export default function PaymentRequestModal({
               <div>
                 <label className="block text-sm font-medium">申请人</label>
                 <input type="text" value={formData.applicant} onChange={(e) => handleChange('applicant', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">财务</label>
+                <input type="text" value={formData.finance} onChange={(e) => handleChange('finance', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">审批</label>
+                <input type="text" value={formData.approver} onChange={(e) => handleChange('approver', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
           </div>
