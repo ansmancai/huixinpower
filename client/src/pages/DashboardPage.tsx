@@ -129,21 +129,21 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">仪表盘</h1>
-        <p className="text-gray-500 mt-1">欢迎回来，{user?.name}</p>
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-gray-800">仪表盘</h1>
+        <p className="text-gray-500 text-sm mt-0.5">欢迎回来，{user?.name}</p>
       </div>
 
-      {/* 统计卡片 - 浅色背景风格 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* 统计卡片 - 紧凑版 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {statCards.map((card) => (
-          <div key={card.label} className={`bg-white rounded-xl shadow-sm border ${card.border} p-5 hover:shadow-md transition-shadow`}>
+          <div key={card.label} className={`bg-white rounded-lg shadow-sm border ${card.border} p-3 hover:shadow-md transition-shadow`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm mb-1">{card.label}</p>
-                <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                <p className="text-gray-500 text-xs mb-1">{card.label}</p>
+                <p className="text-xl font-bold text-gray-800">{card.value}</p>
               </div>
-              <div className={`w-10 h-10 rounded-lg ${card.color} flex items-center justify-center text-xl`}>
+              <div className={`w-8 h-8 rounded-lg ${card.color} flex items-center justify-center text-base`}>
                 {card.icon}
               </div>
             </div>
@@ -151,19 +151,19 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* 项目状态分布 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-base font-semibold text-gray-700 mb-4">项目状态分布</h2>
-          <div className="space-y-3">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">项目状态分布</h2>
+          <div className="space-y-2">
             {Object.entries(statusMap).map(([status, { label, color }]) => (
               <div key={status} className="flex justify-between items-center">
-                <span className="text-gray-600 text-sm">{label}</span>
-                <div className="flex items-center gap-3">
-                  <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <span className="text-gray-600 text-xs">{label}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${color.replace('text', 'bg')}`} style={{ width: `${(statusCounts[status as keyof typeof statusCounts] / stats.totalProjects) * 100}%` }}></div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${color}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-xs ${color}`}>
                     {statusCounts[status as keyof typeof statusCounts]} 个
                   </span>
                 </div>
@@ -173,31 +173,31 @@ export default function DashboardPage() {
         </div>
 
         {/* 待办提醒 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-base font-semibold text-gray-700 mb-4">待办提醒</h2>
-          <div className="space-y-4">
-            <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-              <p className="text-red-600 font-medium text-sm">待付款提醒</p>
-              <p className="text-red-500 text-lg font-semibold mt-1">{formatAmount(unpaidPurchase)}</p>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">待办提醒</h2>
+          <div className="space-y-3">
+            <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+              <p className="text-red-600 font-medium text-xs">待付款提醒</p>
+              <p className="text-red-500 text-base font-semibold mt-0.5">{formatAmount(unpaidPurchase)}</p>
             </div>
-            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-              <p className="text-yellow-600 font-medium text-sm">待收款提醒</p>
-              <p className="text-yellow-500 text-lg font-semibold mt-1">{formatAmount(unpaidReceipt)}</p>
+            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+              <p className="text-yellow-600 font-medium text-xs">待收款提醒</p>
+              <p className="text-yellow-500 text-base font-semibold mt-0.5">{formatAmount(unpaidReceipt)}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 近期收付款动态 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base font-semibold text-gray-700">近期收付款动态</h2>
-            <Link to="/transactions" className="text-blue-600 text-sm hover:underline">查看全部 →</Link>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm font-semibold text-gray-700">近期收付款动态</h2>
+            <Link to="/transactions" className="text-blue-600 text-xs hover:underline">查看全部 →</Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {recentTransactions.map((tx) => (
-              <div key={tx.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+              <div key={tx.id} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
                 <div>
                   <p className="font-medium text-gray-800 text-sm">{tx.project_name || '项目'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -210,19 +210,19 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
-            {recentTransactions.length === 0 && <div className="text-center text-gray-400 py-4 text-sm">暂无交易记录</div>}
+            {recentTransactions.length === 0 && <div className="text-center text-gray-400 py-3 text-xs">暂无交易记录</div>}
           </div>
         </div>
 
         {/* 近期发票动态 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base font-semibold text-gray-700">近期发票动态</h2>
-            <Link to="/invoices" className="text-blue-600 text-sm hover:underline">查看全部 →</Link>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm font-semibold text-gray-700">近期发票动态</h2>
+            <Link to="/invoices" className="text-blue-600 text-xs hover:underline">查看全部 →</Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {recentInvoices.map((inv) => (
-              <div key={inv.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+              <div key={inv.id} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
                 <div>
                   <p className="font-medium text-gray-800 text-sm">{inv.invoice_no}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
-            {recentInvoices.length === 0 && <div className="text-center text-gray-400 py-4 text-sm">暂无发票记录</div>}
+            {recentInvoices.length === 0 && <div className="text-center text-gray-400 py-3 text-xs">暂无发票记录</div>}
           </div>
         </div>
       </div>
