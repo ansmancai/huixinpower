@@ -155,7 +155,8 @@ export default function InvoiceFormPage() {
   }, [id, isEdit, canEdit, navigate]);
 
   // PDF 解析（暂保留）
-  const parsePDF = async (file: File) => {
+  // PDF 解析
+const parsePDF = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
   
