@@ -9,6 +9,7 @@ interface Stats {
   completedProjects: number;
   suspendedProjects: number;
   planningProjects: number;
+  pendingPaymentProjects: number;
   ongoingAmount: number;
   totalPurchaseAmount: number;
   totalPaidAmount: number;
@@ -45,6 +46,7 @@ export default function DashboardPage() {
     completedProjects: 0,
     suspendedProjects: 0,
     planningProjects: 0,
+    pendingPaymentProjects: 0,
     ongoingAmount: 0,
     totalPurchaseAmount: 0,
     totalPaidAmount: 0,
@@ -70,6 +72,7 @@ export default function DashboardPage() {
           const completed = projects.filter(p => p.status === 'completed').length;
           const suspended = projects.filter(p => p.status === 'suspended').length;
           const planning = projects.filter(p => p.status === 'planning').length;
+          const pendingPayment = projects.filter(p => p.status === 'pending_payment').length;
           const ongoingAmount = projects
             .filter(p => p.status === 'ongoing')
             .reduce((sum, p) => sum + (parseFloat(p.contract_amount) || 0), 0);
@@ -82,6 +85,7 @@ export default function DashboardPage() {
             completedProjects: completed,
             suspendedProjects: suspended,
             planningProjects: planning,
+            pendingPaymentProjects: pendingPayment,
             ongoingAmount: ongoingAmount,
             totalContractAmount: totalContract,
           }));
@@ -155,12 +159,21 @@ export default function DashboardPage() {
     { label: '应收款总额', value: formatAmount(unpaidReceipt), icon: '💰', color: 'bg-green-500' },
   ];
 
-  const statusItems = [
-    { label: '规划中', count: stats.planningProjects, color: 'bg-purple-100 text-purple-800' },
-    { label: '进行中', count: stats.ongoingProjects, color: 'bg-blue-100 text-blue-800' },
-    { label: '已完成', count: stats.completedProjects, color: 'bg-green-100 text-green-800' },
-    { label: '已暂停', count: stats.suspendedProjects, color: 'bg-gray-100 text-gray-800' },
-  ];
+  const statusMap: Record<string, { label: string; color: string }> = {
+    planning: { label: '规划中', color: 'bg-purple-100 text-purple-800' },
+    ongoing: { label: '进行中', color: 'bg-blue-100 text-blue-800' },
+    completed: { label: '已完成', color: 'bg-green-100 text-green-800' },
+    pending_payment: { label: '未收齐', color: 'bg-yellow-100 text-yellow-800' },
+    suspended: { label: '已暂停', color: 'bg-gray-100 text-gray-800' },
+  };
+
+  const statusCounts = {
+    planning: stats.planningProjects,
+    ongoing: stats.ongoingProjects,
+    completed: stats.completedProjects,
+    pending_payment: stats.pendingPaymentProjects,
+    suspended: stats.suspendedProjects,
+  };
 
   const paymentMethodMap: Record<string, string> = {
     bank: '银行转账',
@@ -173,7 +186,7 @@ export default function DashboardPage() {
   };
 
   const invoiceTypeMap: Record<string, string> = { input: '进项', output: '销项' };
-  const invoiceStatusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', cancelled: '作废' };
+  const invoiceStatusMap: Record<string, string> = { unpaid: '未付款', partial: '部分付款', paid: '已付款', cancelled: '作废' };
 
   if (loading) {
     return <div className="flex justify-center py-12"><div className="text-gray-500">加载中...</div></div>;
@@ -208,11 +221,11 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold mb-4">项目状态分布</h2>
           <div className="space-y-3">
-            {statusItems.map((item) => (
-              <div key={item.label} className="flex justify-between items-center">
-                <span className="text-gray-600">{item.label}</span>
-                <span className={`px-2 py-1 rounded-full text-xs ${item.color}`}>
-                  {item.count} 个项目
+            {Object.entries(statusMap).map(([status, { label, color }]) => (
+              <div key={status} className="flex justify-between items-center">
+                <span className="text-gray-600">{label}</span>
+                <span className={`px-2 py-1 rounded-full text-xs ${color}`}>
+                  {statusCounts[status as keyof typeof statusCounts]} 个项目
                 </span>
               </div>
             ))}
