@@ -174,7 +174,7 @@ export default function InvoicesPage() {
     <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
     <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
     <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
-    <td className="px-4 py-3 text-sm">{i.suppliers?.name || '-'}</td>
+    <td className="px-4 py-3 text-sm">{i.supplier_name || i.suppliers?.name || '-'}</td>
     <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
     {/* 👇 附件列 */}
     <td className="px-4 py-3 text-center">
