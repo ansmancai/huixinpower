@@ -185,7 +185,7 @@ export default function InvoicesPage() {
           rel="noopener noreferrer"
           className="text-red-500 hover:text-red-700 text-lg"
         >
-          📎
+          📄
         </a>
       ) : '-'}
     </td>
