@@ -21,7 +21,7 @@ export default function PaymentRequestModal({
   user,
 }: PaymentRequestModalProps) {
   const [formData, setFormData] = useState({
-    paymentNo: `HXFB${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+    paymentNo: `HXXT${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     applicationDate: new Date().toLocaleDateString('zh-CN'),
     projectName: project?.name || '',
     purpose: purchase?.content || transaction?.remark || '',
