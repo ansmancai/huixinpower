@@ -243,7 +243,10 @@ export default function InvoiceFormPage() {
   };
   
   const uploadFile = async (file: File): Promise<string> => {
-  const fileName = `${Date.now()}_${file.name}`;
+  const timestamp = Date.now();
+  const ext = file.name.split('.').pop();
+  const fileName = `${timestamp}.${ext}`;
+  
   const { data, error } = await supabase.storage
     .from('invoices')
     .upload(fileName, file);
