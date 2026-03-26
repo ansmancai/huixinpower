@@ -1,4 +1,4 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../api/client';
 import { backupAllData } from '../utils/backup';
@@ -17,6 +17,7 @@ const navItems = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, token, logout, updateUser } = useAuthStore();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -62,7 +63,6 @@ export default function Layout() {
     viewer: '浏览人',
   }[user?.role || 'viewer'];
 
-  // 根据角色过滤菜单
   const visibleNavItems = navItems.filter(item => 
     item.roles.includes(user?.role || 'viewer')
   );
@@ -70,22 +70,56 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* 侧边栏 */}
-      <aside className="w-64 bg-white shadow-md">
-        <div className="p-4 border-b">
-          <h1 className="text-xl font-bold text-blue-600">电力财务系统</h1>
+      <aside className="w-64 bg-gradient-to-b from-blue-800 to-blue-900 shadow-xl">
+        {/* Logo 区域 */}
+        <div className="p-5 border-b border-blue-700">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-blue-300 rounded-lg flex items-center justify-center">
+              <span className="text-white text-lg">⚡</span>
+            </div>
+            <div>
+              <h1 className="text-white text-lg font-bold tracking-wide">汇信电力</h1>
+              <p className="text-blue-300 text-xs">财务管理系统（菜菜测试1.1）</p>
+            </div>
+          </div>
         </div>
-        <nav className="p-4">
-          {visibleNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+        
+        {/* 导航菜单 */}
+        <nav className="p-4 space-y-1">
+          {visibleNavItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  isActive 
+                    ? 'bg-blue-700 text-white shadow-md' 
+                    : 'text-blue-100 hover:bg-blue-700/50 hover:text-white'
+                }`}
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span className="font-medium">{item.label}</span>
+                {isActive && (
+                  <div className="ml-auto w-1 h-6 bg-white rounded-full"></div>
+                )}
+              </Link>
+            );
+          })}
         </nav>
+        
+        {/* 底部用户信息 */}
+        <div className="absolute bottom-0 w-64 p-4 border-t border-blue-700">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm">👤</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">{user?.name}</p>
+              <p className="text-blue-300 text-xs">{roleName}</p>
+            </div>
+          </div>
+        </div>
       </aside>
 
       {/* 主内容区 */}
@@ -93,28 +127,26 @@ export default function Layout() {
         {/* 顶部栏 */}
         <header className="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
           <div className="text-gray-600">
-            欢迎，<span className="font-semibold">{user?.name}</span>
+            欢迎回来，<span className="font-semibold">{user?.name}</span>
             <span className="ml-2 text-sm text-gray-400">({roleName})</span>
           </div>
           <div className="flex items-center gap-4">
-            {/* 备份按钮（仅管理员） */}
             {user?.role === 'admin' && (
               <button
                 onClick={handleBackup}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <span>💾</span>
                 备份数据
               </button>
             )}
             
-            {/* 导出到飞书按钮（财务和管理员） */}
             {(user?.role === 'admin' || user?.role === 'finance') && (
               <div className="relative">
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
                   disabled={exporting}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                   <span>📤</span>
                   {exporting ? '导出中...' : '导出到飞书'}
@@ -150,7 +182,7 @@ export default function Layout() {
         </header>
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-gray-50">
           <Outlet />
         </main>
       </div>
