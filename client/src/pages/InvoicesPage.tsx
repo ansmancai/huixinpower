@@ -195,13 +195,13 @@ export default function InvoicesPage() {
         {statusMap[i.status] || i.status}
       </span>
     </td>
-    <td className="px-4 py-3 text-center">
-      <div className="flex justify-center gap-2">
-        <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm">查看</Link>
-        {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
-        {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm">删除</button>}
-      </div>
-    </td>
+    <td className="px-4 py-3 text-center whitespace-nowrap">
+  <div className="flex justify-center gap-2">
+    <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
+    {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm whitespace-nowrap">编辑</Link>}
+    {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm whitespace-nowrap">删除</button>}
+  </div>
+</td>
   </tr>
 ))} 
               </tbody>
