@@ -183,7 +183,7 @@ export default function InvoicesPage() {
           href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 text-lg"
+          className="text-red-500 hover:text-red-700 text-lg"
         >
           📎
         </a>
