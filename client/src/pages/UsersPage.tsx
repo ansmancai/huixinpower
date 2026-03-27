@@ -43,16 +43,22 @@ export default function UsersPage() {
     
     try {
       if (editingUser) {
+        // 编辑用户
+        const updateData: any = {
+          name: formData.name,
+          role: formData.role,
+        };
+        // 如果填写了新密码，则更新密码
+        if (formData.password) {
+          updateData.password_hash = formData.password;
+        }
         const { error } = await supabase
           .from('users')
-          .update({
-            name: formData.name,
-            role: formData.role,
-          })
+          .update(updateData)
           .eq('id', editingUser.id);
         if (error) throw error;
       } else {
-        // 新建用户，密码暂用明文
+        // 新建用户
         const { error } = await supabase
           .from('users')
           .insert([{
@@ -144,7 +150,12 @@ export default function UsersPage() {
                     <button
                       onClick={() => {
                         setEditingUser(u);
-                        setFormData({ email: u.email, name: u.name, role: u.role, password: '' });
+                        setFormData({
+                          email: u.email,
+                          name: u.name,
+                          role: u.role,
+                          password: '',
+                        });
                         setShowModal(true);
                       }}
                       className="text-blue-600 hover:text-blue-800 text-sm"
@@ -211,7 +222,18 @@ export default function UsersPage() {
                   <option value="viewer">浏览人</option>
                 </select>
               </div>
-              {!editingUser && (
+              {editingUser ? (
+                <div>
+                  <label className="block text-sm font-medium mb-1">新密码（留空则不修改）</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="留空则不修改密码"
+                  />
+                </div>
+              ) : (
                 <div>
                   <label className="block text-sm font-medium mb-1">密码</label>
                   <input
