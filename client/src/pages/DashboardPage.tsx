@@ -47,7 +47,7 @@ export default function DashboardPage() {
         const totalPurchase = purchases?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
 
         // 3. 收付款统计
-        const { data: transactions } = await supabase.from('transactions').select('type, amount, project_id');
+        const { data: transactions } = await supabase.from('transactions').select('type, amount, project_id, purchase_id');
                 
         // 应付款：关联采购的付款
         const payments = transactions?.filter(t => t.type === 'payment' && t.purchase_id) || [];
