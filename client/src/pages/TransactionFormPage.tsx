@@ -160,6 +160,37 @@ export default function TransactionFormPage() {
     if (!canEdit) return;
     setLoading(true);
     
+    // ========== 添加校验（屡次付款不能大于采购总额） ==========
+  // 如果是付款且关联了采购
+  if (formData.type === 'payment' && formData.purchase_id) {
+    // 获取采购金额
+    const { data: purchase } = await supabase
+      .from('purchases')
+      .select('amount')
+      .eq('id', formData.purchase_id)
+      .single();
+    
+    if (purchase) {
+      // 获取该采购已付款总额
+      const { data: payments } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('purchase_id', formData.purchase_id)
+        .eq('type', 'payment');
+      
+      const paidTotal = (payments || []).reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
+      const currentAmount = Math.abs(parseFloat(formData.amount));
+      const remaining = parseFloat(purchase.amount) - paidTotal;
+      
+      if (currentAmount > remaining) {
+        alert(`付款金额超过采购剩余未付款（剩余 ¥${remaining.toFixed(2)}）`);
+        setLoading(false);
+        return;
+      }
+    }
+  }
+  // ========== 校验结束 ==========
+
     try {
       let amount = parseFloat(formData.amount);
       if (formData.type === 'payment' && amount > 0) {
