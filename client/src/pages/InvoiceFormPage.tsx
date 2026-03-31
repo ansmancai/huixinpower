@@ -5,8 +5,11 @@ import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// 使用本地 worker（不依赖 CDN）
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.js',
+  import.meta.url
+).toString();
 
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
