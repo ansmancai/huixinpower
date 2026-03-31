@@ -54,8 +54,8 @@ export default function DashboardPage() {
         const totalPaid = payments.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
 
          // 应收款：关联项目的收款
-        const receipts = transactions?.filter(t => t.type === 'receipt' && t.project_id) || [];
-        const totalReceipt = receipts.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+        const payments = transactions?.filter(t => t.type === 'payment' && t.purchase_id) || [];
+        const totalPaid = payments.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
         
         // 更新 stats
        setStats(prev => ({ 
@@ -64,7 +64,7 @@ export default function DashboardPage() {
          totalPaidAmount: totalPaid, 
          totalReceiptAmount: totalReceipt 
         }));
-        
+
         // 4. 近期收付款
         const { data: recentTx } = await supabase.from('transactions').select('*, projects(name)').order('date', { ascending: false }).limit(5);
         if (recentTx) setRecentTransactions(recentTx.map(tx => ({ ...tx, project_name: tx.projects?.name })));
