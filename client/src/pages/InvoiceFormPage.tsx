@@ -220,40 +220,18 @@ export default function InvoiceFormPage() {
     };
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      alert('请上传 PDF 文件');
-      return;
-    }
+  if (file.type !== 'application/pdf') {
+    alert('请上传 PDF 文件');
+    return;
+  }
 
-    setUploadedFile(file);
-    setUploading(true);
-
-    try {
-      const result = await parsePDF(file);
-      console.log('解析结果:', result);
-
-      setFormData(prev => ({
-        ...prev,
-        invoice_no: result.invoice_no || prev.invoice_no,
-        invoice_date: result.date || prev.invoice_date,
-        amount: result.amount || prev.amount,
-        tax_amount: result.tax || prev.tax_amount,
-        supplier_name: result.seller || result.buyer || prev.supplier_name,
-      }));
-
-      alert('PDF 解析成功，已自动填充表单');
-    } catch (error) {
-      console.error('解析 PDF 失败:', error);
-      alert('解析 PDF 失败，请手动填写');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+  setUploadedFile(file);
+  alert('已选择文件，保存时将一起上传');
+};
 
   // 上传文件到 Supabase Storage
   const uploadFile = async (file: File) => {
