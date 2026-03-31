@@ -209,7 +209,7 @@ export default function PurchasesPage() {
       {loading ? <div className="text-center py-12">加载中...</div> : (
         <>
           <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="w-full min-w-[1100px]"><thead className="bg-gray-50"> transduction
+            <table className="w-full min-w-[1100px]"><thead className="bg-gray-50"> 
               <th className="px-4 py-3 text-left">采购日期</th><th className="px-4 py-3 text-left">采购编号</th><th className="px-4 py-3 text-left">采购内容</th>
               <th className="px-4 py-3 text-left">所属项目</th><th className="px-4 py-3 text-left">供应商</th><th className="px-4 py-3 text-right">金额</th>
               <th className="px-4 py-3 text-center">物流</th><th className="px-4 py-3 text-center">付款</th><th className="px-4 py-3 text-center">收票</th><th className="px-4 py-3 text-center">操作</th>
