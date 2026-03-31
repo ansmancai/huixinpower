@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "routes": [
+      {
+        "path": "/api/*",
+        "script": "api"
+      }
+    ]
+  }
+}
