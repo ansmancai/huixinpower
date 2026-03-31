@@ -1,5 +1,5 @@
-export async function onRequestPost({ request }) {
-  return new Response(JSON.stringify({ message: 'ok' }), {
+export function onRequest() {
+  return new Response(JSON.stringify({ message: 'parse ok' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
