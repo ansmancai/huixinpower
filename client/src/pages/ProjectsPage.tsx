@@ -42,45 +42,40 @@ export default function ProjectsPage() {
       if (error) throw error;
       
       // 获取关联的收付款和发票数据
-      const projectIds = data?.map(p => p.id) || [];
-      if (projectIds.length > 0) {
-        const { data: transactions } = await supabase
-          .from('transactions')
-          .select('project_id, amount, type')
-          .in('project_id', projectIds);
-        
-        const { data: invoices } = await supabase
-          .from('invoices')
-          .select('project_id, total_amount')
-          .in('project_id', projectIds);
-        
-        const receiptMap: Record<string, number> = {};
-        const invoiceMap: Record<string, number> = {};
-        
-        transactions?.forEach(t => {
-          if (t.type === 'receipt') {
-            receiptMap[t.project_id] = (receiptMap[t.project_id] || 0) + parseFloat(t.amount);
-          }
-        });
-        
-        invoices?.forEach(i => {
-          invoiceMap[i.project_id] = (invoiceMap[i.project_id] || 0) + parseFloat(i.total_amount);
-        });
-        
-        data?.forEach(p => {
-          const contractAmount = parseFloat(p.contract_amount || '0');
-          const received = receiptMap[p.id] || 0;
-          const invoiced = invoiceMap[p.id] || 0;
-          p.receivedAmount = received;
-          p.invoicedAmount = invoiced;
-          // 自动计算状态（如果用户没有手动设置）
-          if (!p.status || p.status === '' || p.status === 'manual') {
-            p.autoStatus = getAutoStatus(contractAmount, received);
-          } else {
-            p.autoStatus = p.status;
-          }
-        });
-      }
+      // 获取关联的收付款和发票数据
+const projectIds = data?.map(p => p.id) || [];
+if (projectIds.length > 0) {
+  // 收款（从客户收到）
+  const { data: transactions } = await supabase
+    .from('transactions')
+    .select('project_id, amount, type')
+    .in('project_id', projectIds);
+  
+  // 发票：只统计销项（开给甲方的）
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('project_id, total_amount')
+    .eq('type', 'output')  // 👈 只取销项发票
+    .in('project_id', projectIds);
+  
+  const receiptMap: Record<string, number> = {};
+  const invoiceMap: Record<string, number> = {};
+  
+  transactions?.forEach(t => {
+    if (t.type === 'receipt') {
+      receiptMap[t.project_id] = (receiptMap[t.project_id] || 0) + parseFloat(t.amount);
+    }
+  });
+  
+  invoices?.forEach(i => {
+    invoiceMap[i.project_id] = (invoiceMap[i.project_id] || 0) + parseFloat(i.total_amount);
+  });
+  
+  data?.forEach(p => {
+    p.receivedAmount = receiptMap[p.id] || 0;
+    p.invoicedAmount = invoiceMap[p.id] || 0;  // 销项发票金额
+  });
+}
       
       setProjects(data || []);
     } catch (error) {
