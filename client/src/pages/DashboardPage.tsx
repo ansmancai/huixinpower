@@ -65,21 +65,21 @@ export default function DashboardPage() {
          totalReceiptAmount: totalReceipt 
         }));
         // 调试：对比采购未付款总额
-const { data: allPurchases } = await supabase.from('purchases').select('id, amount');
-const { data: allPayments } = await supabase.from('transactions').select('purchase_id, amount').eq('type', 'payment');
-const paidMap = {};
-allPayments?.forEach(p => {
-  if (p.purchase_id) paidMap[p.purchase_id] = (paidMap[p.purchase_id] || 0) + Math.abs(p.amount);
-});
-let manualTotal = 0;
-allPurchases?.forEach(p => {
-  manualTotal += (parseFloat(p.amount) - (paidMap[p.id] || 0));
-});
-console.log('=== Dashboard 调试 ===');
-console.log('采购总额:', totalPurchase);
-console.log('已付款总额:', totalPaid);
-console.log('仪表盘应付款:', totalPurchase - totalPaid);
-console.log('手动计算采购未付款:', manualTotal);
+         const { data: allPurchases } = await supabase.from('purchases').select('id, amount');
+         const { data: allPayments } = await supabase.from('transactions').select('purchase_id, amount').eq('type', 'payment');
+         const paidMap = {};
+          allPayments?.forEach(p => {
+           if (p.purchase_id) paidMap[p.purchase_id] = (paidMap[p.purchase_id] || 0) + Math.abs(p.amount);
+          });
+          let manualTotal = 0;
+           allPurchases?.forEach(p => {
+            manualTotal += (parseFloat(p.amount) - (paidMap[p.id] || 0));
+          });
+           console.log('=== Dashboard 调试 ===');
+           console.log('采购总额:', totalPurchase);
+           console.log('已付款总额:', totalPaid);
+           console.log('仪表盘应付款:', totalPurchase - totalPaid);
+           console.log('手动计算采购未付款:', manualTotal);
 
         // 4. 近期收付款
         const { data: recentTx } = await supabase.from('transactions').select('*, projects(name)').order('date', { ascending: false }).limit(5);
