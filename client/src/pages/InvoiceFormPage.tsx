@@ -48,48 +48,12 @@ export default function InvoiceFormPage() {
   }, [formData.amount, formData.tax_amount]);
 
   // 上传PDF到后端解析
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadedFile(file);
-    setUploading(true);
-
-    try {
-      // 1. 构造FormData传给后端
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // 2. 调用后端Edge Functions接口
-      const res = await fetch('/api/parse-invoice', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!res.ok) throw new Error('后端解析失败');
-      const result = await res.json();
-      console.log('✅ 后端返回结果：', result);
-
-      // 3. 自动填充表单
-      setFormData(prev => ({
-        ...prev,
-        invoice_no: result.invoice_no || prev.invoice_no,
-        invoice_date: result.date || prev.invoice_date,
-        amount: result.amount || prev.amount,
-        tax_amount: result.tax || prev.tax_amount,
-        supplier_name: result.seller || prev.supplier_name,
-      }));
-
-      alert(`✅ 解析成功！\n发票号：${result.invoice_no}\n金额：${result.amount}\n销售方：${result.seller}`);
-    } catch (err) {
-      console.error('❌ 错误：', err);
-      alert('解析失败，请检查控制台');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
+    setUploa
   // 原有逻辑完整保留
   const uploadFile = async (file: File) => {
     const name = `${Date.now()}.${file.name.split('.').pop()}`;
