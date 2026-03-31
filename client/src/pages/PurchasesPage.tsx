@@ -138,25 +138,25 @@ export default function PurchasesPage() {
       
       // 前端筛选付款状态和收票状态
       let filteredData = pageData || [];
-      if (paymentStatus !== 'all') {
-        filteredData = filteredData.filter(p => {
-          const paidPercent = (p.paidAmount / parseFloat(p.amount)) * 100;
-          if (paymentStatus === 'paid') return paidPercent >= 100;
-          if (paymentStatus === 'partial') return paidPercent > 0 && paidPercent < 100;
-          return paidPercent === 0;
-        });
-      }
-      if (invoiceStatus !== 'all') {
-        filteredData = filteredData.filter(p => {
-          const invoicedPercent = (p.invoicedAmount / parseFloat(p.amount)) * 100;
-          if (invoiceStatus === 'invoiced') return invoicedPercent >= 100;
-          if (invoiceStatus === 'partial') return invoicedPercent > 0 && invoicedPercent < 100;
-          return invoicedPercent === 0;
-        });
-      }
-      
-      setPurchases(filteredData);
-      setTotal(filteredData.length);  // 👈 关键：更新总数为筛选后的数
+if (paymentStatus !== 'all') {
+  filteredData = filteredData.filter(p => {
+    const paidPercent = (p.paidAmount / parseFloat(p.amount)) * 100;
+    if (paymentStatus === 'paid') return paidPercent >= 100;
+    if (paymentStatus === 'partial') return paidPercent > 0 && paidPercent < 100;
+    return paidPercent === 0;
+  });
+}
+if (invoiceStatus !== 'all') {
+  filteredData = filteredData.filter(p => {
+    const invoicedPercent = (p.invoicedAmount / parseFloat(p.amount)) * 100;
+    if (invoiceStatus === 'invoiced') return invoicedPercent >= 100;
+    if (invoiceStatus === 'partial') return invoicedPercent > 0 && invoicedPercent < 100;
+    return invoicedPercent === 0;
+  });
+}
+
+setPurchases(filteredData);
+setTotal(filteredData.length);  // 👈 关键：更新总数为筛选后的数量
 
     } catch (error) {
       console.error('加载采购单失败', error);
