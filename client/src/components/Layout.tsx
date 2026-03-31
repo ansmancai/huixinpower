@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { api } from '../api/client';
 import { backupAllData } from '../utils/backup';
 import { useState, useEffect } from 'react';
-import VantaBackground from './VantaBackground';
+\\import VantaBackground from './VantaBackground';
 
 const navItems = [
   { path: '/dashboard', label: '仪表盘', icon: '📊', roles: ['admin', 'finance', 'boss', 'viewer'] },
@@ -70,7 +70,7 @@ export default function Layout() {
 
   return (
     <>
-      <VantaBackground />
+     {/* <VantaBackground /> */}
       <div className="flex h-screen">
         {/* 侧边栏 */}
         <aside className="w-64 backdrop-blur-xl bg-white/10 border-r border-white/20 shadow-xl">
