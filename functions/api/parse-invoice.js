@@ -1,26 +1,27 @@
-import pdf from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 export async function onRequest(context) {
   const { request } = context;
-  
+
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
-  
+
   try {
     const formData = await request.formData();
     const file = formData.get('file');
-    
+
     if (!file) {
       return new Response(JSON.stringify({ error: '没有文件' }), { status: 400 });
     }
-    
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const data = await pdf(buffer);
+    const data = await pdfParse(buffer);
+
     const text = data.text;
-    
-    // 提取信息
+
+    // 提取发票信息（正则）
     const info = {
       invoice_no: extractInvoiceNo(text),
       amount: extractAmount(text),
@@ -29,7 +30,7 @@ export async function onRequest(context) {
       seller: extractSeller(text),
       buyer: extractBuyer(text),
     };
-    
+
     return new Response(JSON.stringify(info), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -38,6 +39,7 @@ export async function onRequest(context) {
   }
 }
 
+// 提取函数（复用你之前的）
 function extractInvoiceNo(text) {
   const match = text.match(/发票号码[：:]\s*(\d+)/);
   return match ? match[1] : '';
