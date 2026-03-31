@@ -395,15 +395,38 @@ const handleSubmit = async (e: React.FormEvent) => {
   <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
   <div className="flex items-center gap-3">
     <input
-      type="file"
-      ref={fileInputRef}
-      accept=".pdf"
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) setUploadedFile(file);
-      }}
-      className="flex-1"
-    />
+  type="file"
+  ref={fileInputRef}
+  accept=".pdf"
+  onChange={async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 先保存文件
+    setUploadedFile(file);
+    setUploading(true);
+
+    try {
+      // 自动解析 PDF
+      const info = await parsePDF(file);
+
+      // 自动填充表单
+      if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
+      if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
+      if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
+      if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
+      if (info.seller) setFormData(prev => ({ ...prev, supplier_name: info.seller }));
+
+      alert('PDF 解析完成 ✅ 已自动填充');
+    } catch (err) {
+      console.error(err);
+      alert('解析失败，请手动填写');
+    } finally {
+      setUploading(false);
+    }
+  }}
+  className="flex-1"
+/>
     {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
     {currentFilePath && !uploadedFile && (
       <a 
