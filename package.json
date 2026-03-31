@@ -18,7 +18,7 @@
     "drizzle-orm": "^0.30.10",
     "jsonwebtoken": "^9.0.2",
     "pdf-parse": "^2.4.5",
-    "pdfjs-dist": "^5.5.207",
+    "pdfjs-dist": "^5.6.205",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
