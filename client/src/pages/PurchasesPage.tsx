@@ -156,7 +156,8 @@ export default function PurchasesPage() {
       }
       
       setPurchases(filteredData);
-      setTotal(totalCount || 0);
+      setTotal(filteredData.length);  // 👈 关键：更新总数为筛选后的数
+
     } catch (error) {
       console.error('加载采购单失败', error);
     } finally {
