@@ -3,10 +3,10 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
-import * as pdfjsLib from 'pdfjs-dist';
+
 
 // 设置 PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -160,27 +160,34 @@ export default function InvoiceFormPage() {
   }, [id, isEdit, canEdit, navigate]);
 
   // PDF 解析
-  const parsePDF = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
-    }
-    
-    return {
-      invoice_no: extractInvoiceNo(fullText),
-      amount: extractAmount(fullText),
-      tax: extractTax(fullText),
-      date: extractDate(fullText),
-      seller: extractSeller(fullText),
-      buyer: extractBuyer(fullText),
-    };
+  // 纯 Web API 零依赖 PDF 解析（兼容 Edge、不报错）
+const parsePDF = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const pdfStr = new TextDecoder('utf-8').decode(bytes);
+
+  let text = '';
+  const regex = /\/Text\s*?(.+?)\/(?:Font|XObject)/gs;
+  let match;
+
+  while ((match = regex.exec(pdfStr)) !== null) {
+    let chunk = match[1];
+    chunk = chunk.replace(/\\\(|\\\)/g, '').replace(/[\(\)]/g, '');
+    chunk = chunk.replace(/\\([0-9]{1,3})/g, (_, oct) =>
+      String.fromCharCode(parseInt(oct, 8))
+    );
+    text += chunk + ' ';
+  }
+
+  return {
+    invoice_no: extractInvoiceNo(text),
+    amount: extractAmount(text),
+    tax: extractTax(text),
+    date: extractDate(text),
+    seller: extractSeller(text),
+    buyer: extractBuyer(text),
   };
+};
 
   // 提取函数
   function extractInvoiceNo(text: string) {
