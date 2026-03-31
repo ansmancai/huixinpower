@@ -40,21 +40,67 @@ export default function InvoiceFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
-  // 自动计算总金额
   useEffect(() => {
     const a = parseFloat(formData.amount) || 0;
     const t = parseFloat(formData.tax_amount) || 0;
     setFormData(prev => ({ ...prev, total_amount: (a + t).toFixed(2) }));
   }, [formData.amount, formData.tax_amount]);
 
-  // 上传PDF到后端解析
- const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const parsePDF = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/parse-invoice', {
+        method: 'POST',
+        body: formData,
+        mode: 'cors',
+      });
+
+      if (!res.ok) throw new Error('接口错误');
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return {
+        invoice_no: '',
+        date: '',
+        amount: '',
+        tax: '',
+        seller: '',
+      };
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadedFile(file);
-    setUploa
-  // 原有逻辑完整保留
+    setUploading(true);
+
+    try {
+      const result = await parsePDF(file);
+      console.log('✅ 解析结果：', result);
+
+      setFormData(prev => ({
+        ...prev,
+        invoice_no: result.invoice_no || prev.invoice_no,
+        invoice_date: result.date || prev.invoice_date,
+        amount: result.amount || prev.amount,
+        tax_amount: result.tax || prev.tax_amount,
+        supplier_name: result.seller || prev.supplier_name,
+      }));
+
+      alert('解析成功！');
+    } catch (err) {
+      console.error(err);
+      alert('解析失败');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const uploadFile = async (file: File) => {
     const name = `${Date.now()}.${file.name.split('.').pop()}`;
     const { data } = await supabase.storage.from('invoices').upload(name, file);
@@ -64,6 +110,7 @@ export default function InvoiceFormPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     try {
       let fp = currentFilePath;
       if (uploadedFile) {
@@ -92,6 +139,7 @@ export default function InvoiceFormPage() {
       } else {
         await supabase.from('invoices').insert([{ ...body, id: crypto.randomUUID() }]);
       }
+
       navigate('/invoices');
     } catch (err) {
       alert('保存失败');
@@ -100,31 +148,54 @@ export default function InvoiceFormPage() {
     }
   };
 
-  // 搜索逻辑完整保留
   const searchProjects = async (keyword: string) => {
-    const { data } = await supabase.from('projects').select('id,name,client').ilike('name', `%${keyword}%`).limit(20);
+    const { data } = await supabase
+      .from('projects')
+      .select('id,name,client')
+      .ilike('name', `%${keyword}%`)
+      .limit(20);
     return data || [];
   };
+
   const searchSuppliers = async (keyword: string) => {
-    const { data } = await supabase.from('suppliers').select('id,name').ilike('name', `%${keyword}%`).limit(20);
+    const { data } = await supabase
+      .from('suppliers')
+      .select('id,name')
+      .ilike('name', `%${keyword}%`)
+      .limit(20);
     return data || [];
   };
+
   const searchPurchasesByProject = async (projectId: string, keyword: string) => {
-    let q = supabase.from('purchases').select('id,purchase_no,content,amount,supplier_id,suppliers(name)').eq('project_id', projectId);
+    let q = supabase
+      .from('purchases')
+      .select('id,purchase_no,content,amount,supplier_id,suppliers(name)')
+      .eq('project_id', projectId);
+
     if (keyword) q = q.ilike('purchase_no', `%${keyword}%`);
     const { data } = await q.limit(20);
-    return data?.map(p => ({ id: p.id, name: `${p.purchase_no} ${p.content}`, supplier_name: p.suppliers?.name, supplier_id: p.supplier_id, amount: p.amount })) || [];
+
+    return data?.map(p => ({
+      id: p.id,
+      name: `${p.purchase_no} ${p.content}`,
+      supplier_name: p.suppliers?.name,
+      supplier_id: p.supplier_id,
+      amount: p.amount,
+    })) || [];
   };
 
   const handleProjectChange = (val: string) => {
     setFormData(prev => ({ ...prev, project_id: val, purchase_id: '', supplier_id: '' }));
   };
+
   const handlePurchaseSearch = async (k: string) => {
     if (!formData.project_id) return [];
     return searchPurchasesByProject(formData.project_id, k);
   };
 
-  if (!canEdit) return <div className="p-10 text-red-500 text-center">无权限</div>;
+  if (!canEdit) {
+    return <div className="p-10 text-center text-red-500">无权限操作</div>;
+  }
 
   return (
     <div className="max-w-3xl mx-auto p-4">
@@ -146,28 +217,57 @@ export default function InvoiceFormPage() {
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm mb-1">发票号码 *</label>
-            <input className="w-full border p-2 rounded" value={formData.invoice_no} onChange={e => setFormData({ ...formData, invoice_no: e.target.value })} />
+            <label className="block text-sm mb-1">发票号码</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={formData.invoice_no}
+              onChange={e => setFormData({ ...formData, invoice_no: e.target.value })}
+            />
           </div>
+
           <div>
-            <label className="block text-sm mb-1">开票日期 *</label>
-            <input className="w-full border p-2 rounded" type="date" value={formData.invoice_date} onChange={e => setFormData({ ...formData, invoice_date: e.target.value })} />
+            <label className="block text-sm mb-1">开票日期</label>
+            <input
+              type="date"
+              className="w-full border p-2 rounded"
+              value={formData.invoice_date}
+              onChange={e => setFormData({ ...formData, invoice_date: e.target.value })}
+            />
           </div>
+
           <div>
-            <label className="block text-sm mb-1">金额 *</label>
-            <input className="w-full border p-2 rounded" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
+            <label className="block text-sm mb-1">金额</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={formData.amount}
+              onChange={e => setFormData({ ...formData, amount: e.target.value })}
+            />
           </div>
+
           <div>
             <label className="block text-sm mb-1">税额</label>
-            <input className="w-full border p-2 rounded" value={formData.tax_amount} onChange={e => setFormData({ ...formData, tax_amount: e.target.value })} />
+            <input
+              className="w-full border p-2 rounded"
+              value={formData.tax_amount}
+              onChange={e => setFormData({ ...formData, tax_amount: e.target.value })}
+            />
           </div>
+
           <div className="col-span-2">
-            <label className="block text-sm mb-1">对方名称 *</label>
-            <input className="w-full border p-2 rounded" value={formData.supplier_name} onChange={e => setFormData({ ...formData, supplier_name: e.target.value })} />
+            <label className="block text-sm mb-1">对方名称</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={formData.supplier_name}
+              onChange={e => setFormData({ ...formData, supplier_name: e.target.value })}
+            />
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
           {loading ? '保存中...' : '保存'}
         </button>
       </form>
