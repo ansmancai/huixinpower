@@ -54,8 +54,8 @@ export default function DashboardPage() {
         const totalPaid = payments.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
 
          // 应收款：关联项目的收款
-        const payments = transactions?.filter(t => t.type === 'payment' && t.purchase_id) || [];
-        const totalPaid = payments.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
+        const receipts = transactions?.filter(t => t.type === 'receipt' && t.project_id) || [];
+        const totalReceipt = receipts.reduce((sum, r) => sum + parseFloat(r.amount), 0);
         
         // 更新 stats
        setStats(prev => ({ 
