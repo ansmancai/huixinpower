@@ -47,9 +47,10 @@ export default function DashboardPage() {
         const totalPurchase = purchases?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
 
         // 3. 收付款统计
-        const { data: transactions } = await supabase.from('transactions').select('type, amount');
+        const { data: transactions } = await supabase.from('transactions').select('type, amount, project_id');
         const totalPaid = transactions?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0) || 0;
-        const totalReceipt = transactions?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0;
+            // 👇 只统计关联了项目的收款
+        const totalReceipt = transactions?.filter(t => t.type === 'receipt' && t.project_id).reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0;
         setStats(prev => ({ ...prev, totalPurchaseAmount: totalPurchase, totalPaidAmount: totalPaid, totalReceiptAmount: totalReceipt }));
 
         // 4. 近期收付款
