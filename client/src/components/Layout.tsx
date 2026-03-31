@@ -68,8 +68,7 @@ export default function Layout() {
     item.roles.includes(user?.role || 'viewer')
   );
 
-  return (
-    
+      
     return (
   <>
     <VantaBackground />
