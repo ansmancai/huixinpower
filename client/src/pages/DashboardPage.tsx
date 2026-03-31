@@ -46,14 +46,14 @@ export default function DashboardPage() {
         const { data: purchases } = await supabase.from('purchases').select('amount');
         const totalPurchase = purchases?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
 
-        // 3.收付款统计
-        const { data: transactions } = await supabase.from('transactions').select('type, amount, project_id, purchase_id');
-          // 应付款：只统计关联了采购的付款
-        const totalPaid = transactions?.filter(t => t.type === 'payment' && t.purchase_id && t.purchase_id !== '').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0) || 0;  
-        // 应收款：只统计关联了项目的收款
+        // 3. 收付款统计
+        const { data: transactions } = await supabase.from('transactions').select('type, amount, project_id');
+        const totalPaid = transactions?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0) || 0;
+     // 👇 只统计关联了项目的收款
         const totalReceipt = transactions?.filter(t => t.type === 'receipt' && t.project_id).reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0;
         
         setStats(prev => ({ ...prev, totalPurchaseAmount: totalPurchase, totalPaidAmount: totalPaid, totalReceiptAmount: totalReceipt }));
+        
         // 4. 近期收付款
         const { data: recentTx } = await supabase.from('transactions').select('*, projects(name)').order('date', { ascending: false }).limit(5);
         if (recentTx) setRecentTransactions(recentTx.map(tx => ({ ...tx, project_name: tx.projects?.name })));
