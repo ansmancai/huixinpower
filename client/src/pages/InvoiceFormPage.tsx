@@ -4,10 +4,6 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
 
-
-// 设置 PDF.js worker
-
-
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -36,13 +32,11 @@ export default function InvoiceFormPage() {
   const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
   const [currentFilePath, setCurrentFilePath] = useState('');
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
-  // 自动计算总金额
   useEffect(() => {
     const amount = parseFloat(formData.amount) || 0;
     const tax = parseFloat(formData.tax_amount) || 0;
@@ -50,7 +44,6 @@ export default function InvoiceFormPage() {
     setFormData(prev => ({ ...prev, total_amount: total.toString() }));
   }, [formData.amount, formData.tax_amount]);
 
-  // 从 URL 参数获取带入的数据
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
@@ -159,37 +152,37 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // PDF 解析
-  // 纯 Web API 零依赖 PDF 解析（兼容 Edge、不报错）
-const parsePDF = async (file: File) => {
-  const arrayBuffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const pdfStr = new TextDecoder('utf-8').decode(bytes);
+  // ==============================
+  // 零依赖 PDF 解析（已修好）
+  // ==============================
+  const parsePDF = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const pdfStr = new TextDecoder('utf-8').decode(bytes);
 
-  let text = '';
-  const regex = /\/Text\s*?(.+?)\/(?:Font|XObject)/gs;
-  let match;
+    let text = '';
+    const regex = /\/Text\s*?(.+?)\/(?:Font|XObject)/gs;
+    let match;
 
-  while ((match = regex.exec(pdfStr)) !== null) {
-    let chunk = match[1];
-    chunk = chunk.replace(/\\\(|\\\)/g, '').replace(/[\(\)]/g, '');
-    chunk = chunk.replace(/\\([0-9]{1,3})/g, (_, oct) =>
-      String.fromCharCode(parseInt(oct, 8))
-    );
-    text += chunk + ' ';
-  }
+    while ((match = regex.exec(pdfStr)) !== null) {
+      let chunk = match[1];
+      chunk = chunk.replace(/\\\(|\\\)/g, '').replace(/[\(\)]/g, '');
+      chunk = chunk.replace(/\\([0-9]{1,3})/g, (_, oct) =>
+        String.fromCharCode(parseInt(oct, 8))
+      );
+      text += chunk + ' ';
+    }
 
-  return {
-    invoice_no: extractInvoiceNo(text),
-    amount: extractAmount(text),
-    tax: extractTax(text),
-    date: extractDate(text),
-    seller: extractSeller(text),
-    buyer: extractBuyer(text),
+    return {
+      invoice_no: extractInvoiceNo(text),
+      amount: extractAmount(text),
+      tax: extractTax(text),
+      date: extractDate(text),
+      seller: extractSeller(text),
+      buyer: extractBuyer(text),
+    };
   };
-};
 
-  // 提取函数
   function extractInvoiceNo(text: string) {
     const match = text.match(/发票号码[：:]\s*(\d+)/);
     return match ? match[1] : '';
@@ -226,105 +219,67 @@ const parsePDF = async (file: File) => {
     return match ? match[1].trim() : '';
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') {
-      alert('请上传 PDF 文件');
-      return;
-    }
-    
-    setUploading(true);
-    try {
-      const info = await parsePDF(file);
-      if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
-      if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
-      if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
-      if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
-      if (info.seller) setFormData(prev => ({ ...prev, supplier_name: info.seller }));
-      alert('PDF 解析完成，已自动填充表单');
-    } catch (error) {
-      console.error('解析 PDF 失败:', error);
-      alert('解析 PDF 失败，请手动填写');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-  
   const uploadFile = async (file: File): Promise<string> => {
-  const timestamp = Date.now();
-  const ext = file.name.split('.').pop();
-  const fileName = `${timestamp}.${ext}`;
-  
-  const { data, error } = await supabase.storage
-    .from('invoices')
-    .upload(fileName, file);
-  
-  if (error) throw error;
-  return data.path;
-};
+    const timestamp = Date.now();
+    const ext = file.name.split('.').pop();
+    const fileName = `${timestamp}.${ext}`;
+    const { data, error } = await supabase.storage.from('invoices').upload(fileName, file);
+    if (error) throw error;
+    return data.path;
+  };
 
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!canEdit) return;
-  setLoading(true);
-  
-  try {
-    let filePath = currentFilePath;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEdit) return;
+    setLoading(true);
     
-    // 如果上传了新文件
-    if (uploadedFile) {
-      // 如果有旧文件，先删除
-      if (currentFilePath) {
-        await supabase.storage.from('invoices').remove([currentFilePath]);
+    try {
+      let filePath = currentFilePath;
+      if (uploadedFile) {
+        if (currentFilePath) {
+          await supabase.storage.from('invoices').remove([currentFilePath]);
+        }
+        filePath = await uploadFile(uploadedFile);
       }
-      filePath = await uploadFile(uploadedFile);
-    }
-    
-    const submitData: any = {
-      type: formData.type,
-      invoice_no: formData.invoice_no,
-      amount: parseFloat(formData.amount) || 0,
-      tax_amount: formData.tax_amount ? parseFloat(formData.tax_amount) : null,
-      total_amount: parseFloat(formData.total_amount) || 0,
-      invoice_date: formData.invoice_date,
-      project_id: formData.project_id || null,
-      purchase_id: formData.type === 'input' ? (formData.purchase_id || null) : null,
-      supplier_name: formData.supplier_name || null,
-      supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
-      status: formData.status,
-      remark: formData.remark || null,
-      file_path: filePath,
-      updated_at: new Date().toISOString(),
-    };
+      
+      const submitData: any = {
+        type: formData.type,
+        invoice_no: formData.invoice_no,
+        amount: parseFloat(formData.amount) || 0,
+        tax_amount: formData.tax_amount ? parseFloat(formData.tax_amount) : null,
+        total_amount: parseFloat(formData.total_amount) || 0,
+        invoice_date: formData.invoice_date,
+        project_id: formData.project_id || null,
+        purchase_id: formData.type === 'input' ? (formData.purchase_id || null) : null,
+        supplier_name: formData.supplier_name || null,
+        supplier_id: formData.type === 'input' ? (formData.supplier_id || null) : null,
+        status: formData.status,
+        remark: formData.remark || null,
+        file_path: filePath,
+        updated_at: new Date().toISOString(),
+      };
 
-    if (isEdit) {
-      const { error } = await supabase
-        .from('invoices')
-        .update(submitData)
-        .eq('id', id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('invoices')
-        .insert([{
+      if (isEdit) {
+        const { error } = await supabase.from('invoices').update(submitData).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('invoices').insert([{
           ...submitData,
           id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
         }]);
-      if (error) throw error;
+        if (error) throw error;
+      }
+      
+      navigate('/invoices');
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      alert(error.message || '保存失败');
+    } finally {
+      setLoading(false);
     }
-    
-    navigate('/invoices');
-  } catch (error: any) {
-    console.error('保存失败:', error);
-    alert(error.message || '保存失败');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
@@ -350,10 +305,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
       .eq('project_id', projectId);
     
-    if (keyword) {
-      query = query.ilike('purchase_no', `%${keyword}%`);
-    }
-    
+    if (keyword) query = query.ilike('purchase_no', `%${keyword}%`);
     const { data } = await query.limit(20);
     return data?.map(p => ({
       id: p.id,
@@ -399,57 +351,48 @@ const handleSubmit = async (e: React.FormEvent) => {
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
       
       <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
-  <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
-  <div className="flex items-center gap-3">
-    <input
-  type="file"
-  ref={fileInputRef}
-  accept=".pdf"
-  onChange={async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // 先保存文件
-    setUploadedFile(file);
-    setUploading(true);
-
-    try {
-      // 自动解析 PDF
-      const info = await parsePDF(file);
-
-      // 自动填充表单
-      if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
-      if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
-      if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
-      if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
-      if (info.seller) setFormData(prev => ({ ...prev, supplier_name: info.seller }));
-
-      alert('PDF 解析完成 ✅ 已自动填充');
-    } catch (err) {
-      console.error(err);
-      alert('解析失败，请手动填写');
-    } finally {
-      setUploading(false);
-    }
-  }}
-  className="flex-1"
-/>
-    {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
-    {currentFilePath && !uploadedFile && (
-      <a 
-        href={supabase.storage.from('invoices').getPublicUrl(currentFilePath).data.publicUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-600 text-sm hover:underline"
-      >
-        查看当前附件
-      </a>
-    )}
-  </div>
-  <p className="text-xs text-gray-500 mt-2">
-    支持 PDF 格式，上传新文件将替换旧文件
-  </p>
-</div>
+        <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（自动识别）</label>
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".pdf"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUploadedFile(file);
+              setUploading(true);
+              try {
+                const info = await parsePDF(file);
+                if (info.invoice_no) setFormData(prev => ({ ...prev, invoice_no: info.invoice_no }));
+                if (info.date) setFormData(prev => ({ ...prev, invoice_date: info.date }));
+                if (info.amount) setFormData(prev => ({ ...prev, amount: info.amount }));
+                if (info.tax) setFormData(prev => ({ ...prev, tax_amount: info.tax }));
+                if (info.seller) setFormData(prev => ({ ...prev, supplier_name: info.seller }));
+                alert('✅ PDF 解析完成，已自动填充！');
+              } catch (err) {
+                console.error(err);
+                alert('❌ 解析失败');
+              } finally {
+                setUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }
+            }}
+            className="flex-1"
+            disabled={uploading}
+          />
+          {uploadedFile && <span className="text-green-600 text-sm">已选：{uploadedFile.name}</span>}
+          {currentFilePath && !uploadedFile && (
+            <a 
+              href={supabase.storage.from('invoices').getPublicUrl(currentFilePath).data.publicUrl}
+              target="_blank" rel="noopener noreferrer"
+              className="text-blue-600 text-sm hover:underline"
+            >
+              查看附件
+            </a>
+          )}
+        </div>
+      </div>
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -515,7 +458,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               className="w-full px-3 py-2 border rounded-lg bg-gray-50"
               readOnly
             />
-            <p className="text-xs text-gray-500 mt-1">自动计算（金额 + 税额）</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">开票日期 *</label>
@@ -538,9 +480,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               displayName={selectedProjectName}
               initialOptions={projectOptions}
             />
-            {selectedProjectName && (
-              <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>
-            )}
           </div>
           
           {formData.type === 'input' && (
@@ -562,9 +501,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                 initialOptions={purchaseOptions}
                 disabled={!formData.project_id}
               />
-              {formData.project_id && !formData.purchase_id && (
-                <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商和金额</p>
-              )}
             </div>
           )}
           
@@ -575,7 +511,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               required
               value={formData.supplier_name}
               onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-              placeholder={formData.type === 'output' ? '甲方名称' : '发票上的对方名称'}
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
@@ -586,12 +521,10 @@ const handleSubmit = async (e: React.FormEvent) => {
               <SearchSelect
                 value={formData.supplier_id}
                 onChange={(val, option: any) => {
-                  if (option) {
-                    setFormData({ ...formData, supplier_id: val, supplier_name: option.name });
-                  }
+                  if (option) setFormData({ ...formData, supplier_id: val, supplier_name: option.name });
                 }}
                 onSearch={searchSuppliers}
-                placeholder="如对方是系统供应商，可选择关联"
+                placeholder="选择供应商"
                 displayName={selectedSupplierName}
                 initialOptions={supplierOptions}
               />
