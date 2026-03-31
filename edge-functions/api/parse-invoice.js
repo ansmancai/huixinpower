@@ -1,13 +1,12 @@
-export async function onRequest({ request }) {
+export async function onRequest(context) {
+  const { request } = context;
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file');
 
     if (!file) {
-      return new Response(JSON.stringify({ error: '没有文件' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(JSON.stringify({ error: '没有文件' }), { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -26,13 +25,10 @@ export async function onRequest({ request }) {
     };
 
     return new Response(JSON.stringify(info), {
-      headers: { 'Content-Type': 'application/json', 'Charset': 'UTF-8' }
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
 
