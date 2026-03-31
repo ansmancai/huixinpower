@@ -63,11 +63,12 @@ export const authApi = {
       throw new Error('用户不存在');
     }
     
-    if (password !== 'admin123' && password !== '123456') {
-      throw new Error('密码错误');
+    if (data.password_hash !== password) {
+    throw new Error('密码错误');
     }
     
     const token = btoa(JSON.stringify({ id: data.id, email: data.email, role: data.role }));
+    return { token, user: data };
     
     // 记录登录日志
     await logLogin(data.id, data.name);
