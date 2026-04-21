@@ -13,7 +13,7 @@ interface Purchase {
   purchase_date: string;
 }
 
-export default function MobilePurchaseSearch() {
+export default function PurchaseSearch() {
   const [keyword, setKeyword] = useState('');
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,15 +28,11 @@ export default function MobilePurchaseSearch() {
     setLoading(true);
 
     try {
-      const currentPage = reset ? 0 : page;
-      const from = currentPage * pageSize;
-      const to = from + pageSize - 1;
-
-      // 搜索匹配的项目ID和供应商ID
+      // 1. 先获取匹配的项目ID和供应商ID
       let projectIds: string[] = [];
       let supplierIds: string[] = [];
       
-      if (keyword) {
+      if (keyword && keyword.trim() !== '') {
         const { data: matchedProjects } = await supabase
           .from('projects')
           .select('id')
@@ -50,25 +46,36 @@ export default function MobilePurchaseSearch() {
         supplierIds = matchedSuppliers?.map(s => s.id) || [];
       }
 
+      // 2. 分页参数
+      const currentPage = reset ? 0 : page;
+      const from = currentPage * pageSize;
+      const to = from + pageSize - 1;
+
+      // 3. 构建查询
       let query = supabase
         .from('purchases')
-        .select('*, projects(name), suppliers(name)', { count: 'exact' })
+        .select('*, projects(name), suppliers(name)')
         .range(from, to)
         .order('purchase_date', { ascending: false });
 
-      if (keyword) {
+      // 4. 添加搜索条件
+      if (keyword && keyword.trim() !== '') {
         const conditions = [`content.ilike.%${keyword}%`];
-        if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
-        if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        if (projectIds.length > 0) {
+          conditions.push(`project_id.in.(${projectIds.join(',')})`);
+        }
+        if (supplierIds.length > 0) {
+          conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        }
         query = query.or(conditions.join(','));
       }
 
-      const { data, error, count } = await query;
+      const { data, error } = await query;
       if (error) throw error;
 
-      // 获取付款金额
+      // 5. 获取付款金额
       const purchaseIds = data?.map(p => p.id) || [];
-      if (purchaseIds.length) {
+      if (purchaseIds.length > 0) {
         const { data: payments } = await supabase
           .from('transactions')
           .select('purchase_id, amount')
@@ -85,6 +92,7 @@ export default function MobilePurchaseSearch() {
         });
       }
 
+      // 6. 格式化数据
       const formattedData = (data || []).map(p => ({
         id: p.id,
         purchase_no: p.purchase_no,
@@ -97,6 +105,7 @@ export default function MobilePurchaseSearch() {
         purchase_date: p.purchase_date,
       }));
 
+      // 7. 更新状态
       if (reset) {
         setPurchases(formattedData);
         setPage(1);
@@ -113,7 +122,7 @@ export default function MobilePurchaseSearch() {
     }
   }, [keyword, page, loading]);
 
-  // 搜索时重置
+  // 搜索关键词变化时重置
   useEffect(() => {
     setPurchases([]);
     setPage(0);
@@ -142,12 +151,6 @@ export default function MobilePurchaseSearch() {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
   };
 
-  const statusMap: Record<string, string> = {
-    arrived: '已到货',
-    ordered: '已下单',
-    pending: '待发货',
-  };
-
   const getPaymentStatus = (p: Purchase) => {
     const unpaid = p.amount - p.paidAmount;
     if (unpaid <= 0) return { text: '已付清', color: 'text-green-600' };
@@ -156,22 +159,18 @@ export default function MobilePurchaseSearch() {
   };
 
   return (
-    <div>
+    <div className="min-h-screen bg-gray-100 p-4">
       <h1 className="text-xl font-bold mb-4">采购查询</h1>
       
-      {/* 搜索框 */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="搜索采购内容、项目名称、供应商..."
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          className="w-full px-4 py-3 border rounded-lg text-base"
-          autoFocus
-        />
-      </div>
+      <input
+        type="text"
+        placeholder="搜索采购内容、项目名称、供应商..."
+        value={keyword}
+        onChange={(e) => setKeyword(e.target.value)}
+        className="w-full px-4 py-3 border rounded-lg text-base mb-4"
+        autoFocus
+      />
 
-      {/* 结果列表 */}
       <div className="space-y-3">
         {purchases.map((p, index) => {
           const paymentStatus = getPaymentStatus(p);
@@ -207,26 +206,14 @@ export default function MobilePurchaseSearch() {
                   <span className="text-gray-500">采购日期：</span>
                   <span className="text-gray-700">{new Date(p.purchase_date).toLocaleDateString()}</span>
                 </div>
-                <div>
-                  <span className="text-gray-500">物流：</span>
-                  <span className="text-gray-700">{statusMap[p.logistics_status] || p.logistics_status}</span>
-                </div>
               </div>
             </div>
           );
         })}
         
-        {loading && (
-          <div className="text-center py-4 text-gray-500">加载中...</div>
-        )}
-        
-        {!loading && purchases.length === 0 && keyword && (
-          <div className="text-center py-8 text-gray-500">没有找到相关采购记录</div>
-        )}
-        
-        {!loading && !hasMore && purchases.length > 0 && (
-          <div className="text-center py-4 text-gray-400 text-sm">没有更多了</div>
-        )}
+        {loading && <div className="text-center py-4 text-gray-500">加载中...</div>}
+        {!loading && purchases.length === 0 && keyword && <div className="text-center py-8 text-gray-500">没有找到相关采购记录</div>}
+        {!loading && !hasMore && purchases.length > 0 && <div className="text-center py-4 text-gray-400 text-sm">没有更多了</div>}
       </div>
     </div>
   );
