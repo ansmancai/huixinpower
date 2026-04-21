@@ -76,11 +76,11 @@ function App() {
         {/* <Route path="logs" element={<LogsPage />} /> */}
        
         {/* 手机端路由 - 放在这里，电脑端路由的末尾 */}
-        <Route path="mobile-home" element={<PrivateRoute><MobileHome /></PrivateRoute>} />
-        <Route path="mobile/purchase-search" element={<PrivateRoute><PurchaseSearch /></PrivateRoute>} />
-        <Route path="mobile/project-search" element={<PrivateRoute><ProjectSearch /></PrivateRoute>} />
-        <Route path="mobile/supplier-search" element={<PrivateRoute><SupplierSearch /></PrivateRoute>} />
-        <Route path="mobile/transaction-search" element={<PrivateRoute><TransactionSearch /></PrivateRoute>} />
+        <Route path="mobile-home" element={<PrivateRoute><MobileLayout><MobileHome /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/purchase-search" element={<PrivateRoute><MobileLayout><PurchaseSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/project-search" element={<PrivateRoute><MobileLayout><ProjectSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/supplier-search" element={<PrivateRoute><MobileLayout><SupplierSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/transaction-search" element={<PrivateRoute><MobileLayout><TransactionSearch /></MobileLayout></PrivateRoute>} />
       </Route>
     </Routes>
   );
