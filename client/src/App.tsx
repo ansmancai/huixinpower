@@ -1,10 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import { useMobile } from './hooks/useMobile';
 import Layout from './components/Layout';
-import MobileLayout from './mobile/layouts/MobileLayout';
-import MobileHome from './mobile/pages/MobileHome';
-import MobilePurchaseSearch from './mobile/pages/MobilePurchaseSearch';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -31,38 +27,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 手机端路由
-function MobileRoutes() {
-  return (
-    <MobileLayout>
-      <Routes>
-        <Route index element={<MobileHome />} />
-        <Route path="purchase-search" element={<MobilePurchaseSearch />} />
-        {/* 后续添加其他查询页面 */}
-      </Routes>
-    </MobileLayout>
-  );
-}
-
 function App() {
-  // 通过域名判断手机端
-  const isMobileDomain = window.location.hostname === 'mb.gdhxpower.com';
-  // 通过设备判断（备用）
-  const isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isMobile = isMobileDomain || isMobileDevice;
-
-  // 手机端
-  if (isMobile) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/mobile/*" element={<PrivateRoute><MobileRoutes /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to="/mobile" replace />} />
-      </Routes>
-    );
-  }
-
-  // 电脑端
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
