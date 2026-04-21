@@ -156,14 +156,12 @@ export default function TransactionFormPage() {
   }, [id, isEdit, canEdit, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit) return;
-    setLoading(true);
-    
-    // ========== 添加校验（屡次付款不能大于采购总额） ==========
-  // 如果是付款且关联了采购
-  if (formData.type === 'payment' && formData.purchase_id) {
-    // 获取采购金额
+  e.preventDefault();
+  if (!canEdit) return;
+  setLoading(true);
+  
+  // 只在新建时校验金额
+  if (!isEdit && formData.type === 'payment' && formData.purchase_id) {
     const { data: purchase } = await supabase
       .from('purchases')
       .select('amount')
@@ -171,7 +169,6 @@ export default function TransactionFormPage() {
       .single();
     
     if (purchase) {
-      // 获取该采购已付款总额
       const { data: payments } = await supabase
         .from('transactions')
         .select('amount')
@@ -189,6 +186,9 @@ export default function TransactionFormPage() {
       }
     }
   }
+  
+  // ... 后续保存逻辑
+};
   // ========== 校验结束 ==========
 
     try {
