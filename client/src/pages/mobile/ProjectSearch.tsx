@@ -177,7 +177,7 @@ export default function ProjectSearch() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100  p-3 sm:p-4">
       <h1 className="text-xl font-bold mb-4">项目查询</h1>
       
       <input
@@ -185,7 +185,7 @@ export default function ProjectSearch() {
         placeholder="搜索项目名称、编号、甲方..."
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        className="w-full px-4 py-3 border rounded-lg text-base mb-4"
+        className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-sm sm:text-base mb-3 sm:mb-4" 
         autoFocus
       />
 
@@ -199,7 +199,7 @@ export default function ProjectSearch() {
             <div
               key={p.id}
               ref={index === projects.length - 1 ? lastElementRef : null}
-              className="bg-white rounded-lg shadow p-4"
+              className="bg-white rounded-lg shadow p-3 sm:p-4"
             >
               <div className="mb-2">
                 <p className="font-medium text-gray-900">{p.name}</p>

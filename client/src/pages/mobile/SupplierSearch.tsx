@@ -188,7 +188,7 @@ export default function SupplierSearch() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-3 sm:p-4">
       <h1 className="text-xl font-bold mb-4">供应商查询</h1>
       
       <input
@@ -196,7 +196,7 @@ export default function SupplierSearch() {
         placeholder="搜索供应商名称、编号..."
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        className="w-full px-4 py-3 border rounded-lg text-base mb-4"
+        className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-sm sm:text-base mb-3 sm:mb-4"  
         autoFocus
       />
 
@@ -211,7 +211,7 @@ export default function SupplierSearch() {
               ref={index === suppliers.length - 1 ? lastElementRef : null}
               className="bg-white rounded-lg shadow overflow-hidden"
             >
-              <div className="p-4" onClick={() => toggleExpand(s.id)}>
+              <div className="p-3 sm:p-4" onClick={() => toggleExpand(s.id)}>
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{s.name}</p>
@@ -241,7 +241,7 @@ export default function SupplierSearch() {
               </div>
               
               {isExpanded && (
-                <div className="border-t border-gray-100 bg-gray-50 p-4">
+                <div className="border-t border-gray-100 bg-gray-50 p-3 sm:p-4">
                   <div className="mb-3">
                     <p className="text-sm text-gray-500">开户行</p>
                     <p className="text-sm">{s.bank}</p>
@@ -253,24 +253,24 @@ export default function SupplierSearch() {
                   
                   {s.unpaidPurchases.length > 0 && (
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">未付清采购</p>
-                      <div className="space-y-2">
-                        {s.unpaidPurchases.map(p => (
-                          <div key={p.id} className="bg-white rounded p-2 text-sm">
-                            <div className="flex justify-between">
-                              <div>
-                                <span className="text-gray-700">{p.content}</span>
-                                <div className="text-xs text-gray-400">项目：{p.project_name}</div>
-                              </div>
-                              <span className="text-red-600">{formatAmount(p.unpaid)}</span>
-                            </div>
-                            <div className="text-xs text-gray-400 mt-1">
-                              采购金额：{formatAmount(p.amount)} | 已付：{formatAmount(p.paidAmount)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+  <p className="text-sm font-medium text-gray-700 mb-2">未付清采购</p>
+  <div className="space-y-2">
+    {s.unpaidPurchases.map(p => (
+      <div key={p.id} className="bg-white rounded p-2 sm:p-3 text-sm">
+        <div className="flex justify-between">
+          <div>
+            <span className="text-gray-700">{p.content}</span>
+            <div className="text-xs text-gray-400 mt-0.5">项目：{p.project_name}</div>
+          </div>
+          <span className="text-red-600 font-medium">{formatAmount(p.unpaid)}</span>
+        </div>
+        <div className="text-xs text-gray-400 mt-1">
+          采购金额：{formatAmount(p.amount)} | 已付：{formatAmount(p.paidAmount)}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
                   )}
                   
                   {s.unpaidPurchases.length === 0 && (

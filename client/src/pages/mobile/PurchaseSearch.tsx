@@ -175,7 +175,7 @@ export default function PurchaseSearch() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-3 sm:p-4">
       <h1 className="text-xl font-bold mb-4">采购查询</h1>
       
       <input
@@ -183,7 +183,7 @@ export default function PurchaseSearch() {
         placeholder="搜索采购内容、项目名称、供应商..."
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        className="w-full px-4 py-3 border rounded-lg text-base mb-4"
+        className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-sm sm:text-base mb-3 sm:mb-4"  
         autoFocus
       />
 
@@ -195,7 +195,7 @@ export default function PurchaseSearch() {
             <div
               key={p.id}
               ref={index === purchases.length - 1 ? lastElementRef : null}
-              className="bg-white rounded-lg shadow p-4"
+              className="bg-white rounded-lg shadow p-3 sm:p-4"
             >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">

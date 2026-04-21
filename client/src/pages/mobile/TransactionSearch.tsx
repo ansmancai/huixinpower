@@ -160,35 +160,35 @@ export default function TransactionSearch() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-3 sm:p-4">
       <h1 className="text-xl font-bold mb-4">收付款查询</h1>
       
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          placeholder="搜索备注、项目、供应商..."
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          className="flex-1 px-4 py-3 border rounded-lg text-base"
-          autoFocus
-        />
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as any)}
-          className="px-4 py-3 border rounded-lg bg-white"
-        >
-          <option value="all">全部</option>
-          <option value="receipt">收款</option>
-          <option value="payment">付款</option>
-        </select>
-      </div>
+      <div className="flex gap-2 mb-3 sm:mb-4">
+  <input
+    type="text"
+    placeholder="搜索备注、项目、供应商..."
+    value={keyword}
+    onChange={(e) => setKeyword(e.target.value)}
+    className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-sm sm:text-base"
+    autoFocus
+  />
+  <select
+    value={filterType}
+    onChange={(e) => setFilterType(e.target.value as any)}
+    className="px-3 sm:px-4 py-2 sm:py-3 border rounded-lg bg-white text-sm sm:text-base"
+  >
+    <option value="all">全部</option>
+    <option value="receipt">收款</option>
+    <option value="payment">付款</option>
+  </select>
+</div>
 
       <div className="space-y-3">
         {transactions.map((t, index) => (
           <div
             key={t.id}
             ref={index === transactions.length - 1 ? lastElementRef : null}
-            className="bg-white rounded-lg shadow p-4"
+            className="bg-white rounded-lg shadow p-3 sm:p-4"
           >
             <div className="flex justify-between items-start mb-2">
               <div>
