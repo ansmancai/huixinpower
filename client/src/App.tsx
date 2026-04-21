@@ -45,13 +45,11 @@ function MobileRoutes() {
 }
 
 function App() {
-  // 判断是否为手机设备
-  const isMobileDevice = () => {
-    if (window.location.search.includes('mobile=1')) return true;
-    if (window.location.search.includes('pc=1')) return false;
-    return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  };
-  const isMobile = useMobile();
+  // 通过域名判断手机端
+  const isMobileDomain = window.location.hostname === 'm.gdhxpower.com';
+  // 通过设备判断（备用）
+  const isMobileDevice = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isMobile = isMobileDomain || isMobileDevice;
 
   // 手机端
   if (isMobile) {
