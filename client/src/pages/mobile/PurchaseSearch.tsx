@@ -19,31 +19,34 @@ export default function PurchaseSearch() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
-  const loadPurchases = useCallback(async (reset: boolean = false) => {
+  const loadPurchases = useCallback(async (reset: boolean = false, searchKeyword: string = keyword) => {
     const currentRequestId = ++requestIdRef.current;
-    if (loading) return;
+    
+    if (loading && !reset) return;
     setLoading(true);
 
     try {
+      // 搜索匹配的项目ID和供应商ID
       let projectIds: string[] = [];
       let supplierIds: string[] = [];
       
-      if (keyword && keyword.trim() !== '') {
+      if (searchKeyword && searchKeyword.trim() !== '') {
         const { data: matchedProjects } = await supabase
           .from('projects')
           .select('id')
-          .ilike('name', `%${keyword}%`);
+          .ilike('name', `%${searchKeyword}%`);
         projectIds = matchedProjects?.map(p => p.id) || [];
         
         const { data: matchedSuppliers } = await supabase
           .from('suppliers')
           .select('id')
-          .ilike('name', `%${keyword}%`);
+          .ilike('name', `%${searchKeyword}%`);
         supplierIds = matchedSuppliers?.map(s => s.id) || [];
       }
 
@@ -57,8 +60,8 @@ export default function PurchaseSearch() {
         .range(from, to)
         .order('purchase_date', { ascending: false });
 
-      if (keyword && keyword.trim() !== '') {
-        const conditions = [`content.ilike.%${keyword}%`];
+      if (searchKeyword && searchKeyword.trim() !== '') {
+        const conditions = [`content.ilike.%${searchKeyword}%`];
         if (projectIds.length > 0) {
           conditions.push(`project_id.in.(${projectIds.join(',')})`);
         }
@@ -71,8 +74,10 @@ export default function PurchaseSearch() {
       const { data, error } = await query;
       if (error) throw error;
 
+      // 忽略旧请求
       if (currentRequestId !== requestIdRef.current) return;
 
+      // 获取付款金额
       const purchaseIds = data?.map(p => p.id) || [];
       if (purchaseIds.length > 0) {
         const { data: payments } = await supabase
@@ -112,6 +117,7 @@ export default function PurchaseSearch() {
       }
       
       setHasMore(formattedData.length === pageSize);
+      setInitialLoaded(true);
     } catch (error) {
       if (currentRequestId === requestIdRef.current) {
         console.error('加载失败', error);
@@ -123,19 +129,30 @@ export default function PurchaseSearch() {
     }
   }, [keyword, page, loading]);
 
+  // 搜索关键词变化时重置
   useEffect(() => {
+    if (!initialLoaded && keyword === '') return;
+    
     setPurchases([]);
     setPage(0);
     setHasMore(true);
-    loadPurchases(true);
+    loadPurchases(true, keyword);
   }, [keyword]);
 
+  // 初始加载
+  useEffect(() => {
+    if (!initialLoaded) {
+      loadPurchases(true, '');
+    }
+  }, []);
+
+  // 滚动加载更多
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        loadPurchases();
+      if (entries[0].isIntersecting && hasMore && !loading && initialLoaded) {
+        loadPurchases(false, keyword);
       }
     });
     
@@ -144,7 +161,7 @@ export default function PurchaseSearch() {
     }
     
     return () => observerRef.current?.disconnect();
-  }, [hasMore, loading, purchases.length]);
+  }, [hasMore, loading, initialLoaded, purchases.length]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
