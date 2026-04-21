@@ -18,14 +18,16 @@ export default function ProjectSearch() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
-  const loadProjects = useCallback(async (reset: boolean = false) => {
+  const loadProjects = useCallback(async (reset: boolean = false, searchKeyword: string = keyword) => {
     const currentRequestId = ++requestIdRef.current;
-    if (loading) return;
+    
+    if (loading && !reset) return;
     setLoading(true);
 
     try {
@@ -39,8 +41,8 @@ export default function ProjectSearch() {
         .range(from, to)
         .order('created_at', { ascending: false });
 
-      if (keyword && keyword.trim() !== '') {
-        query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%,client.ilike.%${keyword}%`);
+      if (searchKeyword && searchKeyword.trim() !== '') {
+        query = query.or(`name.ilike.%${searchKeyword}%,code.ilike.%${searchKeyword}%,client.ilike.%${searchKeyword}%`);
       }
 
       const { data, error } = await query;
@@ -127,6 +129,7 @@ export default function ProjectSearch() {
       }
       
       setHasMore(formattedData.length === pageSize);
+      setInitialLoaded(true);
     } catch (error) {
       if (currentRequestId === requestIdRef.current) {
         console.error('加载失败', error);
@@ -139,18 +142,26 @@ export default function ProjectSearch() {
   }, [keyword, page, loading]);
 
   useEffect(() => {
+    if (!initialLoaded && keyword === '') return;
+    
     setProjects([]);
     setPage(0);
     setHasMore(true);
-    loadProjects(true);
+    loadProjects(true, keyword);
   }, [keyword]);
+
+  useEffect(() => {
+    if (!initialLoaded) {
+      loadProjects(true, '');
+    }
+  }, []);
 
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        loadProjects();
+      if (entries[0].isIntersecting && hasMore && !loading && initialLoaded) {
+        loadProjects(false, keyword);
       }
     });
     
@@ -159,7 +170,7 @@ export default function ProjectSearch() {
     }
     
     return () => observerRef.current?.disconnect();
-  }, [hasMore, loading, projects.length]);
+  }, [hasMore, loading, initialLoaded, projects.length]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);

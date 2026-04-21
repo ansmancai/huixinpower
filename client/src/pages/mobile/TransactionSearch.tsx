@@ -19,31 +19,33 @@ export default function TransactionSearch() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
-  const loadTransactions = useCallback(async (reset: boolean = false) => {
+  const loadTransactions = useCallback(async (reset: boolean = false, searchKeyword: string = keyword, searchFilter: string = filterType) => {
     const currentRequestId = ++requestIdRef.current;
-    if (loading) return;
+    
+    if (loading && !reset) return;
     setLoading(true);
 
     try {
       let projectIds: string[] = [];
       let supplierIds: string[] = [];
       
-      if (keyword && keyword.trim() !== '') {
+      if (searchKeyword && searchKeyword.trim() !== '') {
         const { data: matchedProjects } = await supabase
           .from('projects')
           .select('id')
-          .ilike('name', `%${keyword}%`);
+          .ilike('name', `%${searchKeyword}%`);
         projectIds = matchedProjects?.map(p => p.id) || [];
         
         const { data: matchedSuppliers } = await supabase
           .from('suppliers')
           .select('id')
-          .ilike('name', `%${keyword}%`);
+          .ilike('name', `%${searchKeyword}%`);
         supplierIds = matchedSuppliers?.map(s => s.id) || [];
       }
 
@@ -57,12 +59,12 @@ export default function TransactionSearch() {
         .range(from, to)
         .order('date', { ascending: false });
 
-      if (filterType !== 'all') {
-        query = query.eq('type', filterType);
+      if (searchFilter !== 'all') {
+        query = query.eq('type', searchFilter);
       }
 
-      if (keyword && keyword.trim() !== '') {
-        const conditions = [`remark.ilike.%${keyword}%`, `payment_method.ilike.%${keyword}%`];
+      if (searchKeyword && searchKeyword.trim() !== '') {
+        const conditions = [`remark.ilike.%${searchKeyword}%`, `payment_method.ilike.%${searchKeyword}%`];
         if (projectIds.length > 0) {
           conditions.push(`project_id.in.(${projectIds.join(',')})`);
         }
@@ -97,6 +99,7 @@ export default function TransactionSearch() {
       }
       
       setHasMore(formattedData.length === pageSize);
+      setInitialLoaded(true);
     } catch (error) {
       if (currentRequestId === requestIdRef.current) {
         console.error('加载失败', error);
@@ -109,18 +112,26 @@ export default function TransactionSearch() {
   }, [keyword, page, loading, filterType]);
 
   useEffect(() => {
+    if (!initialLoaded && keyword === '' && filterType === 'all') return;
+    
     setTransactions([]);
     setPage(0);
     setHasMore(true);
-    loadTransactions(true);
+    loadTransactions(true, keyword, filterType);
   }, [keyword, filterType]);
+
+  useEffect(() => {
+    if (!initialLoaded) {
+      loadTransactions(true, '', 'all');
+    }
+  }, []);
 
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        loadTransactions();
+      if (entries[0].isIntersecting && hasMore && !loading && initialLoaded) {
+        loadTransactions(false, keyword, filterType);
       }
     });
     
@@ -129,7 +140,7 @@ export default function TransactionSearch() {
     }
     
     return () => observerRef.current?.disconnect();
-  }, [hasMore, loading, transactions.length]);
+  }, [hasMore, loading, initialLoaded, transactions.length]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);

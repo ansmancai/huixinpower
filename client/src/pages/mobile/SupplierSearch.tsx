@@ -19,14 +19,16 @@ export default function SupplierSearch() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
-  const loadSuppliers = useCallback(async (reset: boolean = false) => {
+  const loadSuppliers = useCallback(async (reset: boolean = false, searchKeyword: string = keyword) => {
     const currentRequestId = ++requestIdRef.current;
-    if (loading) return;
+    
+    if (loading && !reset) return;
     setLoading(true);
 
     try {
@@ -40,8 +42,8 @@ export default function SupplierSearch() {
         .range(from, to)
         .order('name', { ascending: true });
 
-      if (keyword && keyword.trim() !== '') {
-        query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%`);
+      if (searchKeyword && searchKeyword.trim() !== '') {
+        query = query.or(`name.ilike.%${searchKeyword}%,code.ilike.%${searchKeyword}%`);
       }
 
       const { data, error } = await query;
@@ -57,13 +59,17 @@ export default function SupplierSearch() {
       if (supplierIds.length > 0) {
         const { data: purchases } = await supabase
           .from('purchases')
-          .select('id, supplier_id, amount, content, purchase_no')
+          .select('id, supplier_id, amount, content, purchase_no, project_id, projects(name)')
           .in('supplier_id', supplierIds);
         
         purchases?.forEach(p => {
           purchaseTotalMap[p.supplier_id] = (purchaseTotalMap[p.supplier_id] || 0) + parseFloat(p.amount);
           if (!purchasesBySupplier[p.supplier_id]) purchasesBySupplier[p.supplier_id] = [];
-          purchasesBySupplier[p.supplier_id].push(p);
+          purchasesBySupplier[p.supplier_id].push({
+            ...p,
+            amount: parseFloat(p.amount),
+            project_name: p.projects?.name || '-'
+          });
         });
         
         const purchaseIds = purchases?.map(p => p.id) || [];
@@ -84,12 +90,15 @@ export default function SupplierSearch() {
         Object.keys(purchasesBySupplier).forEach(sid => {
           purchasesBySupplier[sid] = purchasesBySupplier[sid].filter(p => {
             const paid = paidPerPurchase[p.id] || 0;
-            return parseFloat(p.amount) > paid;
+            return p.amount > paid;
           }).map(p => ({
-            ...p,
-            amount: parseFloat(p.amount),
+            id: p.id,
+            content: p.content,
+            purchase_no: p.purchase_no,
+            amount: p.amount,
             paidAmount: paidPerPurchase[p.id] || 0,
-            unpaid: parseFloat(p.amount) - (paidPerPurchase[p.id] || 0)
+            unpaid: p.amount - (paidPerPurchase[p.id] || 0),
+            project_name: p.project_name
           }));
         });
       }
@@ -127,6 +136,7 @@ export default function SupplierSearch() {
       }
       
       setHasMore(formattedData.length === pageSize);
+      setInitialLoaded(true);
     } catch (error) {
       if (currentRequestId === requestIdRef.current) {
         console.error('加载失败', error);
@@ -139,18 +149,26 @@ export default function SupplierSearch() {
   }, [keyword, page, loading]);
 
   useEffect(() => {
+    if (!initialLoaded && keyword === '') return;
+    
     setSuppliers([]);
     setPage(0);
     setHasMore(true);
-    loadSuppliers(true);
+    loadSuppliers(true, keyword);
   }, [keyword]);
+
+  useEffect(() => {
+    if (!initialLoaded) {
+      loadSuppliers(true, '');
+    }
+  }, []);
 
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        loadSuppliers();
+      if (entries[0].isIntersecting && hasMore && !loading && initialLoaded) {
+        loadSuppliers(false, keyword);
       }
     });
     
@@ -159,7 +177,7 @@ export default function SupplierSearch() {
     }
     
     return () => observerRef.current?.disconnect();
-  }, [hasMore, loading, suppliers.length]);
+  }, [hasMore, loading, initialLoaded, suppliers.length]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
@@ -240,7 +258,10 @@ export default function SupplierSearch() {
                         {s.unpaidPurchases.map(p => (
                           <div key={p.id} className="bg-white rounded p-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-gray-700">{p.content}</span>
+                              <div>
+                                <span className="text-gray-700">{p.content}</span>
+                                <div className="text-xs text-gray-400">项目：{p.project_name}</div>
+                              </div>
                               <span className="text-red-600">{formatAmount(p.unpaid)}</span>
                             </div>
                             <div className="text-xs text-gray-400 mt-1">
