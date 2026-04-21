@@ -19,7 +19,7 @@ import InvoicesPage from './pages/InvoicesPage';
 import InvoiceDetailPage from './pages/InvoiceDetailPage';
 import InvoiceFormPage from './pages/InvoiceFormPage';
 import UsersPage from './pages/UsersPage';
-import LogsPage from './pages/LogsPage';
+// import LogsPage from './pages/LogsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -69,7 +69,7 @@ function App() {
         <Route path="users" element={<UsersPage />} />
         
         {/* 操作日志 */}
-        <Route path="logs" element={<LogsPage />} />
+       // <Route path="logs" element={<LogsPage />} />
       </Route>
     </Routes>
   );
