@@ -19,16 +19,17 @@ export default function PurchaseSearch() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
   const loadPurchases = useCallback(async (reset: boolean = false) => {
+    const currentRequestId = ++requestIdRef.current;
     if (loading) return;
     setLoading(true);
 
     try {
-      // 1. 先获取匹配的项目ID和供应商ID
       let projectIds: string[] = [];
       let supplierIds: string[] = [];
       
@@ -46,19 +47,16 @@ export default function PurchaseSearch() {
         supplierIds = matchedSuppliers?.map(s => s.id) || [];
       }
 
-      // 2. 分页参数
       const currentPage = reset ? 0 : page;
       const from = currentPage * pageSize;
       const to = from + pageSize - 1;
 
-      // 3. 构建查询
       let query = supabase
         .from('purchases')
         .select('*, projects(name), suppliers(name)')
         .range(from, to)
         .order('purchase_date', { ascending: false });
 
-      // 4. 添加搜索条件
       if (keyword && keyword.trim() !== '') {
         const conditions = [`content.ilike.%${keyword}%`];
         if (projectIds.length > 0) {
@@ -73,7 +71,8 @@ export default function PurchaseSearch() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // 5. 获取付款金额
+      if (currentRequestId !== requestIdRef.current) return;
+
       const purchaseIds = data?.map(p => p.id) || [];
       if (purchaseIds.length > 0) {
         const { data: payments } = await supabase
@@ -92,7 +91,6 @@ export default function PurchaseSearch() {
         });
       }
 
-      // 6. 格式化数据
       const formattedData = (data || []).map(p => ({
         id: p.id,
         purchase_no: p.purchase_no,
@@ -105,7 +103,6 @@ export default function PurchaseSearch() {
         purchase_date: p.purchase_date,
       }));
 
-      // 7. 更新状态
       if (reset) {
         setPurchases(formattedData);
         setPage(1);
@@ -116,13 +113,16 @@ export default function PurchaseSearch() {
       
       setHasMore(formattedData.length === pageSize);
     } catch (error) {
-      console.error('加载失败', error);
+      if (currentRequestId === requestIdRef.current) {
+        console.error('加载失败', error);
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [keyword, page, loading]);
 
-  // 搜索关键词变化时重置
   useEffect(() => {
     setPurchases([]);
     setPage(0);
@@ -130,7 +130,6 @@ export default function PurchaseSearch() {
     loadPurchases(true);
   }, [keyword]);
 
-  // 滚动加载更多
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     

@@ -19,20 +19,17 @@ export default function TransactionSearch() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
   const loadTransactions = useCallback(async (reset: boolean = false) => {
+    const currentRequestId = ++requestIdRef.current;
     if (loading) return;
     setLoading(true);
 
     try {
-      const currentPage = reset ? 0 : page;
-      const from = currentPage * pageSize;
-      const to = from + pageSize - 1;
-
-      // 搜索匹配的项目ID和供应商ID
       let projectIds: string[] = [];
       let supplierIds: string[] = [];
       
@@ -50,18 +47,20 @@ export default function TransactionSearch() {
         supplierIds = matchedSuppliers?.map(s => s.id) || [];
       }
 
+      const currentPage = reset ? 0 : page;
+      const from = currentPage * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('transactions')
         .select('*, projects(name), suppliers(name)')
         .range(from, to)
         .order('date', { ascending: false });
 
-      // 类型筛选
       if (filterType !== 'all') {
         query = query.eq('type', filterType);
       }
 
-      // 关键词搜索
       if (keyword && keyword.trim() !== '') {
         const conditions = [`remark.ilike.%${keyword}%`, `payment_method.ilike.%${keyword}%`];
         if (projectIds.length > 0) {
@@ -75,6 +74,8 @@ export default function TransactionSearch() {
 
       const { data, error } = await query;
       if (error) throw error;
+
+      if (currentRequestId !== requestIdRef.current) return;
 
       const formattedData = (data || []).map(t => ({
         id: t.id,
@@ -97,9 +98,13 @@ export default function TransactionSearch() {
       
       setHasMore(formattedData.length === pageSize);
     } catch (error) {
-      console.error('加载失败', error);
+      if (currentRequestId === requestIdRef.current) {
+        console.error('加载失败', error);
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [keyword, page, loading, filterType]);
 

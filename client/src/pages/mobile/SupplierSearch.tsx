@@ -19,11 +19,13 @@ export default function SupplierSearch() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const requestIdRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useRef<HTMLDivElement | null>(null);
   const pageSize = 20;
 
   const loadSuppliers = useCallback(async (reset: boolean = false) => {
+    const currentRequestId = ++requestIdRef.current;
     if (loading) return;
     setLoading(true);
 
@@ -45,9 +47,10 @@ export default function SupplierSearch() {
       const { data, error } = await query;
       if (error) throw error;
 
+      if (currentRequestId !== requestIdRef.current) return;
+
       const supplierIds = data?.map(s => s.id) || [];
       
-      // 获取采购总额
       let purchaseTotalMap: Record<string, number> = {};
       let purchasesBySupplier: Record<string, any[]> = {};
       
@@ -63,7 +66,6 @@ export default function SupplierSearch() {
           purchasesBySupplier[p.supplier_id].push(p);
         });
         
-        // 获取付款金额
         const purchaseIds = purchases?.map(p => p.id) || [];
         let paidPerPurchase: Record<string, number> = {};
         
@@ -79,7 +81,6 @@ export default function SupplierSearch() {
           });
         }
         
-        // 计算每个采购的未付款金额，并过滤未付清的
         Object.keys(purchasesBySupplier).forEach(sid => {
           purchasesBySupplier[sid] = purchasesBySupplier[sid].filter(p => {
             const paid = paidPerPurchase[p.id] || 0;
@@ -93,7 +94,6 @@ export default function SupplierSearch() {
         });
       }
       
-      // 获取已付款总额
       let paidTotalMap: Record<string, number> = {};
       if (supplierIds.length > 0) {
         const { data: payments } = await supabase
@@ -128,9 +128,13 @@ export default function SupplierSearch() {
       
       setHasMore(formattedData.length === pageSize);
     } catch (error) {
-      console.error('加载失败', error);
+      if (currentRequestId === requestIdRef.current) {
+        console.error('加载失败', error);
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [keyword, page, loading]);
 
