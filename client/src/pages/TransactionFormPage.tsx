@@ -18,6 +18,8 @@ export default function TransactionFormPage() {
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
   const [matchingPurchases, setMatchingPurchases] = useState<any[]>([]);
+  const [originalAmount, setOriginalAmount] = useState(0); // 记录原始金额
+  const [originalPurchaseId, setOriginalPurchaseId] = useState(''); // 记录原始采购ID
   const [formData, setFormData] = useState({
     date: '',
     type: 'payment',
@@ -104,16 +106,19 @@ export default function TransactionFormPage() {
               purchase_id: data.purchase_id || '',
               remark: data.remark || '',
             });
+            // 记录原始金额和采购ID，用于编辑时判断是否变化
+            setOriginalAmount(Math.abs(parseFloat(data.amount)));
+            setOriginalPurchaseId(data.purchase_id || '');
             
             // 加载选中的项目名称
             if (data.project_id) {
               const { data: project } = await supabase
                 .from('projects')
-                .select('id, name')
+                .select('name')
                 .eq('id', data.project_id)
                 .single();
               if (project) {
-                setProjectOptions([{ id: project.id, name: project.name }]);
+                setProjectOptions([{ id: data.project_id, name: project.name }]);
                 setSelectedProjectName(project.name);
               }
             }
@@ -122,11 +127,11 @@ export default function TransactionFormPage() {
             if (data.supplier_id) {
               const { data: supplier } = await supabase
                 .from('suppliers')
-                .select('id, name')
+                .select('name')
                 .eq('id', data.supplier_id)
                 .single();
               if (supplier) {
-                setSupplierOptions([{ id: supplier.id, name: supplier.name }]);
+                setSupplierOptions([{ id: data.supplier_id, name: supplier.name }]);
                 setSelectedSupplierName(supplier.name);
               }
             }
@@ -155,45 +160,66 @@ export default function TransactionFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!canEdit) return;
-  setLoading(true);
-  
-  // 只在新建时校验金额
-  if (!isEdit && formData.type === 'payment' && formData.purchase_id) {
+  // 校验付款金额是否超过采购剩余未付款
+  const validatePaymentAmount = async (purchaseId: string, amount: number, excludeCurrentId?: string): Promise<boolean> => {
+    // 获取采购金额
     const { data: purchase } = await supabase
       .from('purchases')
       .select('amount')
-      .eq('id', formData.purchase_id)
+      .eq('id', purchaseId)
       .single();
     
-    if (purchase) {
-      const { data: payments } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('purchase_id', formData.purchase_id)
-        .eq('type', 'payment');
-      
-      const paidTotal = (payments || []).reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
-      const currentAmount = Math.abs(parseFloat(formData.amount));
-      const remaining = parseFloat(purchase.amount) - paidTotal;
-      
-      if (currentAmount > remaining) {
-        alert(`付款金额超过采购剩余未付款（剩余 ¥${remaining.toFixed(2)}）`);
-        setLoading(false);
-        return;
-      }
+    if (!purchase) return true;
+    
+    // 获取该采购已付款总额
+    let query = supabase
+      .from('transactions')
+      .select('amount')
+      .eq('purchase_id', purchaseId)
+      .eq('type', 'payment');
+    
+    // 编辑时排除当前记录
+    if (excludeCurrentId) {
+      query = query.neq('id', excludeCurrentId);
     }
-  }
-  
-  // ... 后续保存逻辑
-};
-  // ========== 校验结束 ==========
+    
+    const { data: payments } = await query;
+    const paidTotal = (payments || []).reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
+    const remaining = parseFloat(purchase.amount) - paidTotal;
+    
+    if (amount > remaining) {
+      alert(`付款金额超过采购剩余未付款（剩余 ¥${remaining.toFixed(2)}）`);
+      return false;
+    }
+    return true;
+  };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEdit) return;
+    setLoading(true);
+    
     try {
-      let amount = parseFloat(formData.amount);
-      if (formData.type === 'payment' && amount > 0) {
+      const currentAmount = Math.abs(parseFloat(formData.amount));
+      const currentPurchaseId = formData.purchase_id;
+      
+      // 校验逻辑：
+      // 1. 新建时：必须校验
+      // 2. 编辑时：金额变了 或 采购变了，才校验
+      const shouldValidate = !isEdit || 
+        (currentAmount !== originalAmount) || 
+        (currentPurchaseId !== originalPurchaseId);
+      
+      if (shouldValidate && formData.type === 'payment' && currentPurchaseId) {
+        const isValid = await validatePaymentAmount(currentPurchaseId, currentAmount, isEdit ? id : undefined);
+        if (!isValid) {
+          setLoading(false);
+          return;
+        }
+      }
+      
+      let amount = currentAmount;
+      if (formData.type === 'payment') {
         amount = -amount;
       }
       
@@ -323,7 +349,8 @@ export default function TransactionFormPage() {
               value={formData.project_id}
               onChange={(val) => {
                 setFormData({ ...formData, project_id: val, purchase_id: '' });
-                setSelectedProjectName('');
+                const proj = projects.find(p => p.id === val);
+                setSelectedProjectName(proj?.name || '');
               }}
               onSearch={searchProjects}
               placeholder="选择项目"
@@ -342,7 +369,8 @@ export default function TransactionFormPage() {
               value={formData.supplier_id}
               onChange={(val) => {
                 setFormData({ ...formData, supplier_id: val, purchase_id: '' });
-                setSelectedSupplierName('');
+                const sup = suppliers.find(s => s.id === val);
+                setSelectedSupplierName(sup?.name || '');
               }}
               onSearch={searchSuppliers}
               placeholder="选择供应商"
@@ -357,30 +385,32 @@ export default function TransactionFormPage() {
           {/* 关联采购 */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">关联采购</label>
-            <SearchSelect
-              value={formData.purchase_id}
-              onChange={(val, option: any) => {
-                setFormData({
-                  ...formData,
-                  purchase_id: val,
-                  supplier_name: option?.supplier_name || '',
-                  supplier_id: option?.supplier_id || '',
-                  amount: option?.amount || formData.amount,
-                });
-              }}
-              onSearch={async (keyword) => {
-                if (!formData.project_id || !formData.supplier_id) return [];
-                const results = matchingPurchases;
-                if (keyword) {
-                  return results.filter(p => p.name.includes(keyword));
-                }
-                return results;
-              }}
-              placeholder="选择采购单"
-              initialOptions={purchaseOptions}
-            />
-            {formData.project_id && formData.supplier_id && matchingPurchases.length === 0 && (
-              <p className="text-xs text-gray-500 mt-1">该供应商在此项目下暂无采购记录</p>
+            {formData.project_id && formData.supplier_id ? (
+              matchingPurchases.length > 0 ? (
+                <select
+                  value={formData.purchase_id}
+                  onChange={(e) => setFormData({ ...formData, purchase_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">不关联采购</option>
+                  {matchingPurchases.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                  该供应商在此项目下暂无采购记录
+                </div>
+              )
+            ) : (
+              <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                请先选择项目和供应商，系统将自动列出匹配的采购单
+              </div>
+            )}
+            {formData.purchase_id && (
+              <p className="text-xs text-green-600 mt-1">✅ 已关联采购单</p>
             )}
           </div>
           
