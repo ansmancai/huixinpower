@@ -45,6 +45,12 @@ function MobileRoutes() {
 }
 
 function App() {
+  // 判断是否为手机设备
+  const isMobileDevice = () => {
+    if (window.location.search.includes('mobile=1')) return true;
+    if (window.location.search.includes('pc=1')) return false;
+    return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
   const isMobile = useMobile();
 
   // 手机端
