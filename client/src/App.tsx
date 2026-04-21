@@ -24,6 +24,7 @@ import PurchaseSearch from './pages/mobile/PurchaseSearch';
 import ProjectSearch from './pages/mobile/ProjectSearch';
 import SupplierSearch from './pages/mobile/SupplierSearch';
 import TransactionSearch from './pages/mobile/TransactionSearch';
+import MobileLayout from './mobile/layouts/MobileLayout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
