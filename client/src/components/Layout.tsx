@@ -70,40 +70,82 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* 侧边栏 */}
-      <aside className="w-64 bg-white shadow-md">
-        <div className="p-4 border-b">
-          <h1 className="text-xl font-bold text-blue-600">汇信电力</h1>
-          <p className="text-xs text-gray-500">财务管理系统</p>
+      <aside className="w-64 bg-gray-900 shadow-xl">
+        <div className="p-5 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white text-lg">⚡</span>
+            </div>
+            <div>
+              <h1 className="text-white text-lg font-semibold tracking-wide">汇信电力</h1>
+              <p className="text-gray-400 text-xs">财务管理系统</p>
+            </div>
+          </div>
         </div>
-        <nav className="p-4">
-          {visibleNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-lg hover:bg-gray-100"
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+        
+        <nav className="p-4 space-y-1">
+          {visibleNavItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                  isActive 
+                    ? 'bg-blue-600 text-white shadow-md' 
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                }`}
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span className="font-medium">{item.label}</span>
+                {isActive && (
+                  <div className="ml-auto w-1 h-5 bg-white rounded-full"></div>
+                )}
+              </Link>
+            );
+          })}
         </nav>
+        
+        {/* 手机版入口 */}
+        <div className="px-4 pb-2">
+          <Link
+            to="/mobile-home"
+            className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition-all duration-200"
+          >
+            <span className="text-xl">📱</span>
+            <span className="font-medium">手机版</span>
+          </Link>
+        </div>
+        
+        <div className="absolute bottom-0 w-64 p-4 border-t border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm">👤</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">{user?.name}</p>
+              <p className="text-gray-400 text-xs">{roleName}</p>
+            </div>
+          </div>
+        </div>
       </aside>
 
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* 顶部栏 */}
-        <header className="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
-          <div>
-            欢迎，<span className="font-semibold">{user?.name}</span>
-            <span className="ml-2 text-sm text-gray-400">({roleName})</span>
+        <header className="bg-white shadow-sm px-6 py-3 flex justify-between items-center border-b border-gray-200">
+          <div className="text-gray-500 text-sm">
+            欢迎回来，<span className="font-semibold text-gray-700">{user?.name}</span>
+            <span className="ml-2 text-gray-400">({roleName})</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {user?.role === 'admin' && (
               <button
                 onClick={handleBackup}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                💾 备份数据
+                <span>💾</span>
+                备份
               </button>
             )}
             
@@ -112,23 +154,24 @@ export default function Layout() {
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
                   disabled={exporting}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
-                  📤 {exporting ? '导出中...' : '导出到飞书'}
+                  <span>📤</span>
+                  {exporting ? '导出中...' : '导出'}
                 </button>
                 {showExportMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10">
+                  <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border z-10">
                     {['projects', 'suppliers', 'purchases', 'transactions', 'invoices'].map((type) => (
                       <button
                         key={type}
                         onClick={() => handleExport(type)}
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
                       >
-                        {type === 'projects' && '导出项目'}
-                        {type === 'suppliers' && '导出供应商'}
-                        {type === 'purchases' && '导出采购单'}
-                        {type === 'transactions' && '导出收付款'}
-                        {type === 'invoices' && '导出发票'}
+                        {type === 'projects' && '项目'}
+                        {type === 'suppliers' && '供应商'}
+                        {type === 'purchases' && '采购单'}
+                        {type === 'transactions' && '收付款'}
+                        {type === 'invoices' && '发票'}
                       </button>
                     ))}
                   </div>
@@ -138,15 +181,16 @@ export default function Layout() {
             
             <button
               onClick={handleLogout}
-              className="text-gray-600 hover:bg-gray-100 px-4 py-2 rounded-lg"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              退出登录
+              <span>🚪</span>
+              退出
             </button>
           </div>
         </header>
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-gray-50">
           <Outlet />
         </main>
       </div>

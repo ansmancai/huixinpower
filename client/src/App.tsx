@@ -19,7 +19,8 @@ import InvoicesPage from './pages/InvoicesPage';
 import InvoiceDetailPage from './pages/InvoiceDetailPage';
 import InvoiceFormPage from './pages/InvoiceFormPage';
 import UsersPage from './pages/UsersPage';
-// import LogsPage from './pages/LogsPage';
+import MobileHome from './pages/mobile/MobileHome';
+import PurchaseSearch from './pages/mobile/PurchaseSearch';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -70,6 +71,10 @@ function App() {
         
         {/* 操作日志 */}
         {/* <Route path="logs" element={<LogsPage />} /> */}
+       
+        {/* 手机端路由 - 放在这里，电脑端路由的末尾 */}
+        <Route path="mobile-home" element={<PrivateRoute><MobileHome /></PrivateRoute>} />
+        <Route path="mobile/purchase-search" element={<PrivateRoute><PurchaseSearch /></PrivateRoute>} />
       </Route>
     </Routes>
   );
