@@ -1,7 +1,11 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
-export default function MobileLayout() {
+interface MobileLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function MobileLayout({ children }: MobileLayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
@@ -27,7 +31,7 @@ export default function MobileLayout() {
 
       {/* 内容区域 */}
       <main className="p-4">
-        <Outlet />
+        {children}
       </main>
 
       {/* 底部导航栏 */}
