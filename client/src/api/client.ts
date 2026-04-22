@@ -53,28 +53,23 @@ export async function logLogin(userId: string, userName: string, ip?: string, us
 // ==================== 认证 API ====================
 export const authApi = {
   login: async (email: string, password: string) => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-    
-    if (error || !data) {
-      throw new Error('用户不存在');
-    }
-    
-    if (data.password_hash !== password) {
-    throw new Error('密码错误');
-    }
-    
-    const token = btoa(JSON.stringify({ id: data.id, email: data.email, role: data.role }));
-    return { token, user: data };
-    
-    // 记录登录日志
-    await logLogin(data.id, data.name);
-    
-    return { token, user: data };
-  },
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.error);
+  }
+  
+  // 记录登录日志
+  await logLogin(result.data.user.id, result.data.user.name);
+  
+  return { token: result.data.token, user: result.data.user };
+},
   
   register: async (data: any) => {
     const { data: result, error } = await supabase
