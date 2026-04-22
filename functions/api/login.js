@@ -1,8 +1,14 @@
-// 简单的 JWT 生成（使用 Web Crypto API）
+// 安全的 Base64 编码
+function base64UrlEncode(str) {
+  const bytes = new TextEncoder().encode(str);
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function generateToken(payload, secret) {
   const header = { alg: 'HS256', typ: 'JWT' };
-  const encodedHeader = btoa(JSON.stringify(header));
-  const encodedPayload = btoa(JSON.stringify(payload));
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signatureInput = `${encodedHeader}.${encodedPayload}`;
   
   const encoder = new TextEncoder();
@@ -14,7 +20,9 @@ async function generateToken(payload, secret) {
     ['sign']
   );
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(signatureInput));
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  const signatureArray = new Uint8Array(signature);
+  const base64Signature = btoa(String.fromCharCode(...signatureArray));
+  const encodedSignature = base64Signature.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   
   return `${signatureInput}.${encodedSignature}`;
 }
@@ -30,7 +38,6 @@ export async function onRequestPost({ request, env }) {
       }), { status: 400 });
     }
     
-    // 查询 Supabase 用户表
     const supabaseUrl = env.SUPABASE_URL;
     const supabaseKey = env.SUPABASE_ANON_KEY;
     
@@ -51,7 +58,6 @@ export async function onRequestPost({ request, env }) {
       }), { status: 401 });
     }
     
-    // 验证密码（明文比对）
     if (password !== user.password_hash) {
       return new Response(JSON.stringify({ 
         success: false, 
@@ -59,7 +65,6 @@ export async function onRequestPost({ request, env }) {
       }), { status: 401 });
     }
     
-    // 生成 token
     const payload = { 
       id: user.id, 
       email: user.email, 
