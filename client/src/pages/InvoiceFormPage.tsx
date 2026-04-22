@@ -3,16 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// 设置 PDF.js worker（使用 CDN）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-// 使用本地 worker（不依赖 CDN）
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
 
 export default function InvoiceFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,14 +40,12 @@ export default function InvoiceFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
-  // 自动计算总金额
   useEffect(() => {
     const amount = parseFloat(formData.amount) || 0;
     const tax = parseFloat(formData.tax_amount) || 0;
     setFormData(prev => ({ ...prev, total_amount: (amount + tax).toFixed(2) }));
   }, [formData.amount, formData.tax_amount]);
 
-  // 从 URL 参数获取带入的数据
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
@@ -83,7 +71,6 @@ export default function InvoiceFormPage() {
     }
   };
 
-  // 加载编辑数据
   useEffect(() => {
     if (isEdit && canEdit) {
       const loadInvoice = async () => {
@@ -164,140 +151,17 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  // ========== PDF 解析（前端 pdf.js） ==========
-  const extractInvoiceNo = (text: string) => {
-    const match = text.match(/发票号码[：:]\s*(\d+)/);
-    return match ? match[1] : '';
-  };
-
-  const extractAmount = (text: string) => {
-    const match = text.match(/金额[（(]小写[）)]|[：:]\s*([\d,]+\.?\d*)/);
-    if (match && match[1]) return match[1].replace(/,/g, '');
-    const match2 = text.match(/(\d+\.?\d{2})(?=\s*元)/);
-    return match2 ? match2[1] : '';
-  };
-
-  const extractTax = (text: string) => {
-    const match = text.match(/税额[：:]\s*([\d,]+\.?\d*)/);
-    return match ? match[1].replace(/,/g, '') : '';
-  };
-
-  const extractDate = (text: string) => {
-    const match = text.match(/开票日期[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)/);
-    if (match) {
-      return match[1].replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '');
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      alert('请上传 PDF 文件');
+      return;
     }
-    const match2 = text.match(/(\d{4}-\d{2}-\d{2})/);
-    return match2 ? match2[1] : '';
+    setUploadedFile(file);
+    alert('已选择文件，保存时将一起上传');
   };
 
-  const extractSeller = (text: string) => {
-    const match = text.match(/销售方[：:][\s\S]*?名称[：:]\s*([^\n\r]+)/);
-    return match ? match[1].trim() : '';
-  };
-
-  const extractBuyer = (text: string) => {
-    const match = text.match(/购买方[：:][\s\S]*?名称[：:]\s*([^\n\r]+)/);
-    return match ? match[1].trim() : '';
-  };
-
-  const parsePDF = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
-    }
-
-    return {
-      invoice_no: extractInvoiceNo(fullText),
-      amount: extractAmount(fullText),
-      tax: extractTax(fullText),
-      date: extractDate(fullText),
-      seller: extractSeller(fullText),
-      buyer: extractBuyer(fullText),
-    };
-  };
-const pdfToImage = async (file: File): Promise<string> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
-  
-  const viewport = page.getViewport({ scale: 2.0 });
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext('2d');
-  
-  if (!ctx) {
-    throw new Error('无法获取 canvas 上下文');
-  }
-  
-  // 使用 any 绕过类型检查
-  await (page.render as any)({
-    canvasContext: ctx,
-    viewport: viewport
-  }).promise;
-  
-  return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-};
-const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  if (file.type !== 'application/pdf') {
-    alert('请上传 PDF 文件');
-    return;
-  }
-
-  setUploadedFile(file);
-  setUploading(true);
-
-  try {
-    // 1. PDF 转图片
-    const base64Image = await pdfToImage(file);
-    
-    // 2. 调用 EdgeOne Functions 识别
-    const response = await fetch('/api/ocr/invoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Image })
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      const data = result.data;
-      
-      // 3. 填充表单
-      setFormData(prev => ({
-        ...prev,
-        invoice_no: data.invoiceNo || prev.invoice_no,
-        invoice_date: data.date || prev.invoice_date,
-        amount: data.amount || prev.amount,
-        tax_amount: data.tax || prev.tax_amount,
-        total_amount: data.total || prev.total_amount,
-        supplier_name: data.sellerName || prev.supplier_name,
-      }));
-      
-      alert(`识别成功！发票号码：${data.invoiceNo || '未识别'}`);
-    } else {
-      throw new Error(result.error);
-    }
-  } catch (error) {
-    console.error('识别失败:', error);
-    alert('识别失败，请手动填写');
-  } finally {
-    setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }
-};
-
-  // 上传文件到 Supabase Storage
   const uploadFile = async (file: File) => {
     const ext = file.name.split('.').pop();
     const fileName = `${Date.now()}.${ext}`;
@@ -365,7 +229,6 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
-  // 搜索函数
   const searchProjects = async (keyword: string) => {
     const { data } = await supabase
       .from('projects')
@@ -433,9 +296,8 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
 
-      {/* PDF 上传区域 */}
       <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
-        <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选，自动识别填写）</label>
+        <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
         <div className="flex items-center gap-3">
           <input
             type="file"
@@ -458,7 +320,7 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
           )}
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          支持电子发票 PDF，上传后自动提取信息
+          支持 PDF 格式，文件将保存到云端
         </p>
       </div>
 
