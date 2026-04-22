@@ -5,6 +5,9 @@ import { supabase } from '../api/client';
 import SearchSelect from '../components/SearchSelect';
 import * as pdfjsLib from 'pdfjs-dist';
 
+// 设置 PDF.js worker（使用 CDN）
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 // 使用本地 worker（不依赖 CDN）
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.js',
@@ -219,7 +222,29 @@ export default function InvoiceFormPage() {
       buyer: extractBuyer(fullText),
     };
   };
-
+const pdfToImage = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+  
+  const viewport = page.getViewport({ scale: 2.0 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('无法获取 canvas 上下文');
+  }
+  
+  // 使用 any 绕过类型检查
+  await (page.render as any)({
+    canvasContext: ctx,
+    viewport: viewport
+  }).promise;
+  
+  return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+};
 const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -230,7 +255,46 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 
   setUploadedFile(file);
-  alert('已选择文件，保存时将一起上传');
+  setUploading(true);
+
+  try {
+    // 1. PDF 转图片
+    const base64Image = await pdfToImage(file);
+    
+    // 2. 调用 EdgeOne Functions 识别
+    const response = await fetch('/api/ocr/invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      const data = result.data;
+      
+      // 3. 填充表单
+      setFormData(prev => ({
+        ...prev,
+        invoice_no: data.invoiceNo || prev.invoice_no,
+        invoice_date: data.date || prev.invoice_date,
+        amount: data.amount || prev.amount,
+        tax_amount: data.tax || prev.tax_amount,
+        total_amount: data.total || prev.total_amount,
+        supplier_name: data.sellerName || prev.supplier_name,
+      }));
+      
+      alert(`识别成功！发票号码：${data.invoiceNo || '未识别'}`);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (error) {
+    console.error('识别失败:', error);
+    alert('识别失败，请手动填写');
+  } finally {
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 };
 
   // 上传文件到 Supabase Storage
