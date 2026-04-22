@@ -5,7 +5,7 @@ export default function MobileHome() {
     <div className="min-h-screen bg-gray-100 p-3 sm:p-4">
       {/* 头部卡片 */}
       <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-4 sm:p-6 mb-4 text-white">
-        <h1 className="text-xl sm:text-2xl font-bold text-center">汇信电力</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-center">汇信电力管理（菜心1.2版）</h1>
         <p className="text-center text-blue-100 text-xs sm:text-sm mt-1">移动快捷查询</p>
       </div>
 
