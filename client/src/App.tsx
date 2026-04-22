@@ -36,6 +36,13 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* 手机端路由 -  放在 Layout 外面，与 login 平级  */}
+        <Route path="mobile-home" element={<PrivateRoute><MobileLayout><MobileHome /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/purchase-search" element={<PrivateRoute><MobileLayout><PurchaseSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/project-search" element={<PrivateRoute><MobileLayout><ProjectSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/supplier-search" element={<PrivateRoute><MobileLayout><SupplierSearch /></MobileLayout></PrivateRoute>} />
+        <Route path="mobile/transaction-search" element={<PrivateRoute><MobileLayout><TransactionSearch /></MobileLayout></PrivateRoute>} />
+
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
@@ -76,12 +83,7 @@ function App() {
         {/* 操作日志 */}
         {/* <Route path="logs" element={<LogsPage />} /> */}
        
-        {/* 手机端路由 - 放在这里，电脑端路由的末尾 */}
-        <Route path="mobile-home" element={<PrivateRoute><MobileLayout><MobileHome /></MobileLayout></PrivateRoute>} />
-        <Route path="mobile/purchase-search" element={<PrivateRoute><MobileLayout><PurchaseSearch /></MobileLayout></PrivateRoute>} />
-        <Route path="mobile/project-search" element={<PrivateRoute><MobileLayout><ProjectSearch /></MobileLayout></PrivateRoute>} />
-        <Route path="mobile/supplier-search" element={<PrivateRoute><MobileLayout><SupplierSearch /></MobileLayout></PrivateRoute>} />
-        <Route path="mobile/transaction-search" element={<PrivateRoute><MobileLayout><TransactionSearch /></MobileLayout></PrivateRoute>} />
+        
       </Route>
     </Routes>
   );
