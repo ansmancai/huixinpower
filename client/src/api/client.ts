@@ -53,7 +53,7 @@ export async function logLogin(userId: string, userName: string, ip?: string, us
 // ==================== 认证 API ====================
 export const authApi = {
   login: async (email: string, password: string) => {
-  const response = await fetch('/api/auth/login', {
+  const response = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
