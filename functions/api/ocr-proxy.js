@@ -1,8 +1,4 @@
-// 直接写死密钥（你的正确密钥）
-const BAIDU_API_KEY = 'rP5wKOeE8JVovlx8J7E2S8wv';
-const BAIDU_SECRET_KEY = 'Hf5wWfnJAZHXy6UjkVWKWPWNLUh9pBSu';
-
-export async function onRequestPost({ request }) {
+export async function onRequestPost({ request, env }) {
   try {
     const { image } = await request.json();
     
@@ -13,20 +9,29 @@ export async function onRequestPost({ request }) {
       });
     }
     
+    // 临时硬编码密钥（直接测试）
+    const clientId = 'rP5wKOeE8JVovlx8J7E2S8wv';
+    const clientSecret = 'Hf5wWfnJAZHXy6UjkVWKWPWNLUh9pBSu';
+    
     // 获取百度 access_token
     const tokenRes = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'client_credentials',
-        client_id: BAIDU_API_KEY,
-        client_secret: BAIDU_SECRET_KEY
+        client_id: clientId,
+        client_secret: clientSecret
       })
     });
     
     const tokenData = await tokenRes.json();
+    
     if (!tokenData.access_token) {
-      return new Response(JSON.stringify({ error_code: -1, error_msg: '获取token失败' }), {
+      return new Response(JSON.stringify({ 
+        error_code: -1, 
+        error_msg: '获取token失败', 
+        detail: tokenData 
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });

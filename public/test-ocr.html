@@ -50,13 +50,17 @@
                 reader.onloadend = async () => {
                     const base64 = reader.result.split(',')[1];
                     
-                    const response = await fetch('/api/ocr-proxy', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: base64 })
-                    });
-                    const result = await response.json();
-                    resolve(result);
+                    try {
+                        const response = await fetch('/api/ocr-proxy', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: base64 })
+                        });
+                        const result = await response.json();
+                        resolve(result);
+                    } catch (err) {
+                        reject(err);
+                    }
                 };
                 reader.onerror = reject;
                 reader.readAsDataURL(pdfFile);
@@ -75,7 +79,8 @@
                 
                 if (result.error_code) {
                     resultDiv.innerHTML = `<div style="background:#fee; padding:12px; border-radius:8px; color:#c00;">
-                        ❌ 识别失败: ${result.error_msg} (code: ${result.error_code})
+                        ❌ 识别失败: ${result.error_msg} (code: ${result.error_code})<br>
+                        ${result.detail ? `详情: ${JSON.stringify(result.detail)}` : ''}
                     </div>`;
                 } else {
                     const words = result.words_result || {};
