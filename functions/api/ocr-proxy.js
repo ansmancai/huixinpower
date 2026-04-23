@@ -1,4 +1,4 @@
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request }) {
   try {
     const { image } = await request.json();
     
@@ -9,19 +9,18 @@ export async function onRequestPost({ request, env }) {
       });
     }
     
-    // 临时硬编码密钥（直接测试）
     const clientId = 'rP5wKOeE8JVovlx8J7E2S8wv';
     const clientSecret = 'Hf5wWfnJAZHXy6UjkVWKWPWNLUh9pBSu';
     
-    // 获取百度 access_token
+    // 获取百度 access_token（使用 URLSearchParams）
     const tokenRes = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: clientId,
         client_secret: clientSecret
-      })
+      }).toString()
     });
     
     const tokenData = await tokenRes.json();
