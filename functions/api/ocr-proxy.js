@@ -1,4 +1,4 @@
-// 临时硬编码（测试用，部署后删除）
+// 直接写死密钥（你的正确密钥）
 const BAIDU_API_KEY = 'rP5wKOeE8JVovlx8J7E2S8wv';
 const BAIDU_SECRET_KEY = 'Hf5wWfnJAZHXy6UjkVWKWPWNLUh9pBSu';
 
