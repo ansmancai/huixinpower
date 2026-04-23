@@ -2,7 +2,7 @@ export async function onRequestPost({ request }) {
   try {
     const { pdf } = await request.json();
     
-    if (!image) {
+    if (!pdf) {
       return new Response(JSON.stringify({ error_code: -1, error_msg: '没有图片' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -42,7 +42,7 @@ export async function onRequestPost({ request }) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `pdf_file=${encodeURIComponent(image)}`
+        body: `pdf_file=${encodeURIComponent(pdf)}`
       }
     );
     
