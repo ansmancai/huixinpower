@@ -15,6 +15,7 @@ export default function InvoiceFormPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState('');
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     type: 'input',
@@ -40,6 +41,7 @@ export default function InvoiceFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
+  // 自动计算总金额（保留原有逻辑，作为备选）
   useEffect(() => {
     const amount = parseFloat(formData.amount) || 0;
     const tax = parseFloat(formData.tax_amount) || 0;
@@ -172,6 +174,104 @@ export default function InvoiceFormPage() {
     return data.path;
   };
 
+  // ==================== OCR 识别相关函数 ====================
+  const recognizeInvoice = async (file: File): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        try {
+          const response = await fetch('/api/ocr-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdf: base64 })
+          });
+          const result = await response.json();
+          if (result.error_code) {
+            reject(new Error(`${result.error_msg} (code: ${result.error_code})`));
+          } else {
+            resolve(result);
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const formatDateForInput = (dateStr: string): string => {
+    if (!dateStr) return '';
+    return dateStr.replace(/年|月/g, '-').replace(/日/g, '');
+  };
+
+  const handleRecognize = async () => {
+    if (!uploadedFile) {
+      alert('请先选择要识别的PDF文件');
+      return;
+    }
+    
+    setOcrLoading(true);
+    try {
+      const result = await recognizeInvoice(uploadedFile);
+      const words = result.words_result || {};
+      
+      const myCompanyName = "广东汇信电力建设有限公司";
+      
+      let detectedType: 'input' | 'output' = formData.type;
+      let counterpartyName = '';
+      
+      if (words.SellerName === myCompanyName) {
+        detectedType = 'output';
+        counterpartyName = words.PurchaserName || '';
+      } else if (words.PurchaserName === myCompanyName) {
+        detectedType = 'input';
+        counterpartyName = words.SellerName || '';
+      } else {
+        if (words.SellerName?.includes(myCompanyName)) {
+          detectedType = 'output';
+          counterpartyName = words.PurchaserName || '';
+        } else if (words.PurchaserName?.includes(myCompanyName)) {
+          detectedType = 'input';
+          counterpartyName = words.SellerName || '';
+        } else {
+          counterpartyName = words.SellerName || words.PurchaserName || '';
+          alert('无法自动判断进项/销项，请手动选择发票类型');
+        }
+      }
+      
+      const updates: any = {};
+      
+      if (words.InvoiceNum) updates.invoice_no = words.InvoiceNum;
+      if (words.TotalAmount) updates.amount = words.TotalAmount;
+      if (words.TotalTax) updates.tax_amount = words.TotalTax;
+      if (words.AmountInFiguers) updates.total_amount = words.AmountInFiguers;
+      if (words.InvoiceDate) updates.invoice_date = formatDateForInput(words.InvoiceDate);
+      if (counterpartyName) updates.supplier_name = counterpartyName;
+      
+      if (detectedType === 'output') {
+        updates.purchase_id = '';
+        updates.supplier_id = '';
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        ...updates,
+        type: detectedType
+      }));
+      
+      alert(`✅ 识别成功！\n发票类型：${detectedType === 'input' ? '进项' : '销项'}\n已自动填充表单，请核对并补充信息。`);
+      
+    } catch (error: any) {
+      console.error('识别失败:', error);
+      alert(`❌ 识别失败：${error.message}`);
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+  // ==================== OCR 识别相关函数结束 ====================
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return;
@@ -298,29 +398,42 @@ export default function InvoiceFormPage() {
 
       <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
         <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
-        <div className="flex items-center gap-3">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".pdf"
-            onChange={handleFileChange}
-            disabled={uploading}
-            className="flex-1"
-          />
-          {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
-          {currentFilePath && !uploadedFile && (
-            <a
-              href={supabase.storage.from('invoices').getPublicUrl(currentFilePath).data.publicUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 text-sm hover:underline"
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".pdf"
+              onChange={handleFileChange}
+              disabled={uploading || ocrLoading}
+              className="flex-1"
+            />
+            {uploadedFile && <span className="text-green-600 text-sm">已选择: {uploadedFile.name}</span>}
+            {currentFilePath && !uploadedFile && (
+              <a
+                href={supabase.storage.from('invoices').getPublicUrl(currentFilePath).data.publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 text-sm hover:underline"
+              >
+                查看当前附件
+              </a>
+            )}
+          </div>
+          
+          {uploadedFile && (
+            <button
+              type="button"
+              onClick={handleRecognize}
+              disabled={ocrLoading}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 self-start text-sm"
             >
-              查看当前附件
-            </a>
+              {ocrLoading ? '🤖 识别中...' : '🔍 识别发票并自动填写'}
+            </button>
           )}
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          支持 PDF 格式，文件将保存到云端
+          支持 PDF 格式。选择文件后点击「识别发票」按钮，系统将自动识别并填写发票信息
         </p>
       </div>
 
