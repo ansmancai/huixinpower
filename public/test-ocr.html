@@ -54,7 +54,7 @@
                         const response = await fetch('/api/ocr-proxy', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ image: base64 })
+                            body: JSON.stringify({ pdf: base64 })
                         });
                         const result = await response.json();
                         resolve(result);

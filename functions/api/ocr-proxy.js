@@ -1,6 +1,6 @@
 export async function onRequestPost({ request }) {
   try {
-    const { image } = await request.json();
+    const { pdf } = await request.json();
     
     if (!image) {
       return new Response(JSON.stringify({ error_code: -1, error_msg: '没有图片' }), {
@@ -42,7 +42,7 @@ export async function onRequestPost({ request }) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `image=${image}`
+        body: `pdf_file=${encodeURIComponent(image)}`
       }
     );
     
