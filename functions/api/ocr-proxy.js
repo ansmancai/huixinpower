@@ -1,4 +1,8 @@
-export async function onRequestPost({ request, env }) {
+// 临时硬编码（测试用，部署后删除）
+const BAIDU_API_KEY = 'rP5wKOeE8JVovlx8J7E2S8wv';
+const BAIDU_SECRET_KEY = 'Hf5wWfnJAZHXy6UjkVWKWPWNLUh9pBSu';
+
+export async function onRequestPost({ request }) {
   try {
     const { image } = await request.json();
     
@@ -15,8 +19,8 @@ export async function onRequestPost({ request, env }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'client_credentials',
-        client_id: env.BAIDU_API_KEY,
-        client_secret: env.BAIDU_SECRET_KEY
+        client_id: BAIDU_API_KEY,
+        client_secret: BAIDU_SECRET_KEY
       })
     });
     
