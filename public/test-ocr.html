@@ -84,17 +84,18 @@
                     </div>`;
                 } else {
                     const words = result.words_result || {};
+                    // 修正后的表格：直接使用字段值，不加 .words；字段名使用百度返回的标准名称
                     resultDiv.innerHTML = `
                         <div style="background:#e6f7e6; padding:12px; border-radius:8px;">
                             <h3>✅ 识别成功</h3>
                             <table style="width:100%; border-collapse:collapse;">
-                                <tr><td style="padding:4px">发票号码：</td><td><strong>${words.InvoiceNum?.words || '-'}</strong></td></tr>
-                                <tr><td style="padding:4px">开票日期：</td><td>${words.InvoiceDate?.words || '-'}</td></tr>
-                                <tr><td style="padding:4px">金额：</td><td>${words.AmountInFiguers?.words || '-'}</td></tr>
-                                <tr><td style="padding:4px">税额：</td><td>${words.Tax?.words || '-'}</td></tr>
-                                <tr><td style="padding:4px">价税合计：</td><td>${words.TotalAmountInFiguers?.words || '-'}</td></tr>
-                                <tr><td style="padding:4px">销售方：</td><td>${words.SellerName?.words || '-'}</td></tr>
-                                <tr><td style="padding:4px">购买方：</td><td>${words.BuyerName?.words || '-'}</td></tr>
+                                <tr><td style="padding:4px">发票号码：</td><td><strong>${words.InvoiceNum || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">开票日期：</td><td><strong>${words.InvoiceDate || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">金额（不含税）：</td><td><strong>${words.TotalAmount || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">税额：</td><td><strong>${words.TotalTax || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">价税合计：</td><td><strong>${words.AmountInFiguers || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">销售方：</td><td><strong>${words.SellerName || '-'}</strong></td></tr>
+                                <tr><td style="padding:4px">购买方：</td><td><strong>${words.PurchaserName || '-'}</strong></td></tr>
                             </table>
                             <details style="margin-top:12px">
                                 <summary>查看完整数据</summary>
