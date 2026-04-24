@@ -279,13 +279,23 @@ export default function TransactionFormPage() {
   };
 
   const searchProjects = async (keyword: string) => {
-    const { data } = await supabase
-      .from('projects')
-      .select('id, name, code')
-      .ilike('name', `%${keyword}%`)
-      .limit(20);
-    return data || [];
-  };
+  // 如果已经通过OCR筛选出了项目列表（projectOptions 有值），优先使用这些选项
+  if (projectOptions.length > 0) {
+    // 在已有的项目列表中过滤
+    const filtered = projectOptions.filter(p => 
+      p.name.toLowerCase().includes(keyword.toLowerCase())
+    );
+    return filtered;
+  }
+  
+  // 否则从数据库搜索
+  const { data } = await supabase
+    .from('projects')
+    .select('id, name, code')
+    .ilike('name', `%${keyword}%`)
+    .limit(20);
+  return data || [];
+};
 
   const searchSuppliers = async (keyword: string) => {
     const { data } = await supabase
@@ -547,9 +557,10 @@ export default function TransactionFormPage() {
               value={formData.project_id}
               onChange={(val) => {
                 setFormData({ ...formData, project_id: val, purchase_id: '' });
-                const proj = projects.find(p => p.id === val);
-                setSelectedProjectName(proj?.name || '');
-              }}
+                // 从 projectOptions 中查找项目名称（因为 projects 可能没有包含全部）
+                 const proj = projectOptions.find(p => p.id === val) || projects.find(p => p.id === val);
+                 setSelectedProjectName(proj?.name || '');
+                }}
               onSearch={searchProjects}
               placeholder="选择项目"
               displayName={selectedProjectName}
