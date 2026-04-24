@@ -38,7 +38,7 @@ export default function ProjectsPage() {
         query = query.eq('status', status);
       }
       
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query.order('code', { ascending: false });
       if (error) throw error;
       
       // 获取关联的收付款和发票数据
