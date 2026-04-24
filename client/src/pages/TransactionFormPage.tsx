@@ -41,7 +41,7 @@ export default function TransactionFormPage() {
       .from('transactions')
       .select('receipt_no')
       .eq('type', 'payment')
-      .like('receipt_no', `SF${year}%`)
+      .like('receipt_no', `HXXT${year}%`)
       .order('receipt_no', { ascending: false })
       .limit(1);
     
