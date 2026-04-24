@@ -19,18 +19,8 @@ export default function PaymentRequestModal({
   purchase,
   user,
 }: PaymentRequestModalProps) {
-  // 生成付款单编号：HXXT + 年月日 + 流水号
-  const generatePaymentNo = () => {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(-2);
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const day = now.getDate().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `HXXT${year}${month}${day}${random}`;
-  };
-
   const [formData] = useState({
-    paymentNo: generatePaymentNo(),
+    paymentNo: transaction?.receipt_no || transaction?.id?.slice(0, 8) || '',
     applicationDate: transaction?.date ? new Date(transaction.date).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN'),
     projectName: project?.name || '',
     projectCode: project?.code || '',
@@ -54,7 +44,6 @@ export default function PaymentRequestModal({
     approver: '',
   });
 
-  // 金额转大写
   const amountToChinese = (amount: number) => {
     if (amount === 0) return '零元整';
     const cnNums = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
@@ -121,10 +110,7 @@ export default function PaymentRequestModal({
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-semibold">付款申请单</h2>
           <div className="flex gap-2">
-            <button
-              onClick={handleCopy}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
+            <button onClick={handleCopy} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
               复制全部
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -135,7 +121,6 @@ export default function PaymentRequestModal({
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold">广东汇信电力建设有限公司</h2>
             <h3 className="text-xl font-semibold mt-2">付款申请单</h3>
-            <p className="text-xs text-gray-500 mt-1">编号规则：HXXT + 年月日 + 流水号</p>
           </div>
 
           <div className="space-y-3">
@@ -156,15 +141,15 @@ export default function PaymentRequestModal({
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">款项用途</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.purpose}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.purpose || '-'}</div>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700">付款依据（合同名称/合同号）</label>
+                <label className="block text-sm font-medium text-gray-700">付款依据</label>
                 <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.basis || '-'}</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">项目联系人</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.contactPerson}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.contactPerson || '-'}</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">联系电话</label>
@@ -184,21 +169,23 @@ export default function PaymentRequestModal({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">是否含税</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">
-                  {formData.includeTax ? '含税' : '不含税'}　税率：{formData.taxRate}%
-                </div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.includeTax ? '含税' : '不含税'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">税率</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.taxRate}%</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">收款单位</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierName}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierName || '-'}</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">收款账号</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierAccount}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierAccount || '-'}</div>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">收款人开户行</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierBank}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierBank || '-'}</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">开票情况</label>

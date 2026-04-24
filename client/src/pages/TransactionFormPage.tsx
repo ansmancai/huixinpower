@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
@@ -10,8 +10,6 @@ export default function TransactionFormPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [ocrProcessing, setOcrProcessing] = useState(false);
-  const [ocrMessage, setOcrMessage] = useState('');
   const [projects, setProjects] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [projectOptions, setProjectOptions] = useState<any[]>([]);
@@ -35,7 +33,25 @@ export default function TransactionFormPage() {
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
-  const formRef = useRef<HTMLDivElement>(null);
+
+  // 生成付款编号
+  const generateReceiptNo = async () => {
+    const year = new Date().getFullYear().toString();
+    const { data } = await supabase
+      .from('transactions')
+      .select('receipt_no')
+      .eq('type', 'payment')
+      .like('receipt_no', `SF${year}%`)
+      .order('receipt_no', { ascending: false })
+      .limit(1);
+    
+    let nextNum = 1;
+    if (data && data.length > 0) {
+      const match = data[0].receipt_no.match(/SF\d{4}(\d{4})/);
+      if (match) nextNum = parseInt(match[1]) + 1;
+    }
+    return `SF${year}${nextNum.toString().padStart(4, '0')}`;
+  };
 
   // 从 URL 参数获取带入的数据
   useEffect(() => {
@@ -87,31 +103,6 @@ export default function TransactionFormPage() {
     
     loadMatchingPurchases();
   }, [formData.project_id, formData.supplier_id]);
-
-  // 根据供应商ID加载关联的项目列表（用于OCR后缩小选择范围）
-  const loadProjectsBySupplier = async (supplierId: string) => {
-    if (!supplierId) return [];
-    
-    const { data: purchases } = await supabase
-      .from('purchases')
-      .select('project_id, projects(id, name)')
-      .eq('supplier_id', supplierId)
-      .not('project_id', 'is', null);
-    
-    if (!purchases || purchases.length === 0) return [];
-    
-    // 去重
-    const uniqueProjects = new Map();
-    purchases.forEach(p => {
-      if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
-        uniqueProjects.set(p.project_id, { id: p.project_id, name: p.projects.name });
-      }
-    });
-    
-    const projectList = Array.from(uniqueProjects.values());
-    setProjectOptions(projectList);
-    return projectList;
-  };
 
   useEffect(() => {
     if (isEdit && canEdit) {
@@ -184,6 +175,7 @@ export default function TransactionFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
+  // 校验付款金额
   const validatePaymentAmount = async (purchaseId: string, amount: number, excludeCurrentId?: string): Promise<boolean> => {
     const { data: purchase } = await supabase
       .from('purchases')
@@ -259,6 +251,10 @@ export default function TransactionFormPage() {
           .eq('id', id);
         if (error) throw error;
       } else {
+        // 新建时，如果是付款类型，生成编号
+        if (formData.type === 'payment') {
+          submitData.receipt_no = await generateReceiptNo();
+        }
         const { error } = await supabase
           .from('transactions')
           .insert([{
@@ -279,23 +275,13 @@ export default function TransactionFormPage() {
   };
 
   const searchProjects = async (keyword: string) => {
-  // 如果已经通过OCR筛选出了项目列表（projectOptions 有值），优先使用这些选项
-  if (projectOptions.length > 0) {
-    // 在已有的项目列表中过滤
-    const filtered = projectOptions.filter(p => 
-      p.name.toLowerCase().includes(keyword.toLowerCase())
-    );
-    return filtered;
-  }
-  
-  // 否则从数据库搜索
-  const { data } = await supabase
-    .from('projects')
-    .select('id, name, code')
-    .ilike('name', `%${keyword}%`)
-    .limit(20);
-  return data || [];
-};
+    const { data } = await supabase
+      .from('projects')
+      .select('id, name, code')
+      .ilike('name', `%${keyword}%`)
+      .limit(20);
+    return data || [];
+  };
 
   const searchSuppliers = async (keyword: string) => {
     const { data } = await supabase
@@ -316,194 +302,13 @@ export default function TransactionFormPage() {
     { value: 'other', label: '其他' },
   ];
 
-  // ==================== OCR 粘贴识别功能 ====================
-  const recognizeImage = async (file: File): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = (reader.result as string).split(',')[1];
-        try {
-          const response = await fetch('/api/ocr-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64 })
-          });
-          const result = await response.json();
-          if (result.error_code) {
-            reject(new Error(`${result.error_msg} (code: ${result.error_code})`));
-          } else {
-            resolve(result);
-          }
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  // 从OCR结果中提取付款关键信息（适配 words_result 数组格式）
-  const extractPaymentFields = (ocrResult: any) => {
-    const wordsArray = ocrResult.words_result || [];
-    
-    let amount = '';
-    let date = '';
-    let counterpartyName = '';
-    
-    for (let i = 0; i < wordsArray.length; i++) {
-      const word = wordsArray[i].words || '';
-      
-      if (word.includes('金额（小写）') || word.includes('金额(小写)')) {
-        if (i + 1 < wordsArray.length) {
-          amount = wordsArray[i + 1].words || '';
-        }
-      }
-      
-      if (word.includes('交易日期')) {
-        if (i + 1 < wordsArray.length) {
-          date = wordsArray[i + 1].words || '';
-        }
-      }
-      
-      if (word.includes('收款人名称')) {
-        if (i + 1 < wordsArray.length) {
-          counterpartyName = wordsArray[i + 1].words || '';
-        }
-      }
-    }
-    
-    if (amount) {
-      amount = amount.replace(/,/g, '');
-    }
-    
-    return { amount, date, counterpartyName };
-  };
-
-  // 根据对方名称匹配供应商
-  const matchSupplier = async (name: string): Promise<any | null> => {
-    if (!name) return null;
-    const { data } = await supabase
-      .from('suppliers')
-      .select('id, name')
-      .ilike('name', `%${name}%`)
-      .limit(1);
-    return data && data.length > 0 ? data[0] : null;
-  };
-
-  // 处理粘贴的图片
-  const handlePaste = async (e: ClipboardEvent) => {
-    // 只在新建模式下生效（编辑模式不触发，避免意外覆盖）
-    if (isEdit) return;
-    
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    
-    let imageFile: File | null = null;
-    for (const item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        imageFile = item.getAsFile();
-        break;
-      }
-    }
-    
-    if (!imageFile) return;
-    
-    e.preventDefault();
-    setOcrProcessing(true);
-    setOcrMessage('正在识别付款截图...');
-    
-    try {
-      const ocrResult = await recognizeImage(imageFile);
-      const { amount, date, counterpartyName } = extractPaymentFields(ocrResult);
-      
-      // 自动填充表单字段
-      const updates: any = {};
-      if (amount) updates.amount = amount;
-      if (date) updates.date = date;
-      updates.type = 'payment';
-      updates.payment_method = 'bank';
-      
-      setFormData(prev => ({ ...prev, ...updates }));
-      
-      // 匹配供应商
-      if (counterpartyName) {
-        setOcrMessage(`识别到收款方：${counterpartyName}，正在匹配供应商...`);
-        const matchedSupplier = await matchSupplier(counterpartyName);
-        
-        if (matchedSupplier) {
-          setFormData(prev => ({ ...prev, supplier_id: matchedSupplier.id }));
-          setSelectedSupplierName(matchedSupplier.name);
-          setSupplierOptions([{ id: matchedSupplier.id, name: matchedSupplier.name }]);
-          setOcrMessage(`✅ 已匹配供应商：${matchedSupplier.name}`);
-          
-          // 根据供应商加载关联的项目列表（缩小选择范围）
-          const projectList = await loadProjectsBySupplier(matchedSupplier.id);
-          if (projectList.length === 0) {
-            setOcrMessage(`⚠️ 该供应商暂无关联项目，请手动选择项目`);
-          } else if (projectList.length === 1) {
-            setOcrMessage(`✅ 已自动关联项目：${projectList[0].name}，请确认`);
-          } else {
-            setOcrMessage(`✅ 已匹配供应商，请从下方列表中选择项目`);
-          }
-        } else {
-          setOcrMessage(`⚠️ 未找到匹配的供应商“${counterpartyName}”，请手动选择`);
-        }
-      } else {
-        setOcrMessage(`⚠️ 未能识别到收款方名称，请手动填写`);
-      }
-      
-      // 3秒后清除提示消息
-      setTimeout(() => setOcrMessage(''), 5000);
-      
-    } catch (error: any) {
-      console.error('识别失败:', error);
-      setOcrMessage(`❌ 识别失败：${error.message}`);
-      setTimeout(() => setOcrMessage(''), 5000);
-    } finally {
-      setOcrProcessing(false);
-    }
-  };
-
-  // 监听粘贴事件
-  useEffect(() => {
-    document.addEventListener('paste', handlePaste);
-    return () => {
-      document.removeEventListener('paste', handlePaste);
-    };
-  }, [isEdit]); // 编辑模式下不触发
-
   if (!canEdit) {
     return <div className="text-center py-12 text-red-500">无权限操作</div>;
   }
 
   return (
-    <div className="max-w-3xl mx-auto" ref={formRef}>
+    <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑收付款' : '新建收付款'}</h1>
-      
-      {/* OCR 提示区域 */}
-      {!isEdit && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">💡</span>
-            <span className="text-sm text-blue-800">
-              付款成功后截图，回到本页面按 <kbd className="px-2 py-0.5 bg-white border rounded">Ctrl+V</kbd> 粘贴，系统将自动识别金额、日期和供应商
-            </span>
-          </div>
-          {ocrProcessing && (
-            <div className="mt-2 text-sm text-blue-600 flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
-              {ocrMessage || '识别中...'}
-            </div>
-          )}
-          {!ocrProcessing && ocrMessage && (
-            <div className="mt-2 text-sm text-gray-600">
-              {ocrMessage}
-            </div>
-          )}
-        </div>
-      )}
-      
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -550,28 +355,23 @@ export default function TransactionFormPage() {
             </select>
           </div>
           
-          {/* 关联项目 */}
           <div>
             <label className="block text-sm font-medium mb-1">关联项目</label>
             <SearchSelect
               value={formData.project_id}
               onChange={(val) => {
                 setFormData({ ...formData, project_id: val, purchase_id: '' });
-                // 从 projectOptions 中查找项目名称（因为 projects 可能没有包含全部）
-                 const proj = projectOptions.find(p => p.id === val) || projects.find(p => p.id === val);
-                 setSelectedProjectName(proj?.name || '');
-                }}
+                const proj = projects.find(p => p.id === val);
+                setSelectedProjectName(proj?.name || '');
+              }}
               onSearch={searchProjects}
               placeholder="选择项目"
               displayName={selectedProjectName}
               initialOptions={projectOptions}
             />
-            {selectedProjectName && (
-              <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>
-            )}
+            {selectedProjectName && <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>}
           </div>
           
-          {/* 关联供应商 */}
           <div>
             <label className="block text-sm font-medium mb-1">关联供应商</label>
             <SearchSelect
@@ -586,12 +386,9 @@ export default function TransactionFormPage() {
               displayName={selectedSupplierName}
               initialOptions={supplierOptions}
             />
-            {selectedSupplierName && (
-              <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>
-            )}
+            {selectedSupplierName && <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>}
           </div>
           
-          {/* 关联采购 */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">关联采购</label>
             {formData.project_id && formData.supplier_id ? (
@@ -618,9 +415,7 @@ export default function TransactionFormPage() {
                 请先选择项目和供应商，系统将自动列出匹配的采购单
               </div>
             )}
-            {formData.purchase_id && (
-              <p className="text-xs text-green-600 mt-1">✅ 已关联采购单</p>
-            )}
+            {formData.purchase_id && <p className="text-xs text-green-600 mt-1">✅ 已关联采购单</p>}
           </div>
           
           <div className="md:col-span-2">
@@ -630,7 +425,6 @@ export default function TransactionFormPage() {
               value={formData.remark}
               onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
-              placeholder="选填"
             />
           </div>
         </div>
