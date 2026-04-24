@@ -30,21 +30,29 @@ export default function PaymentRequestModal({
     return `HXXT${year}${month}${day}${random}`;
   };
 
-  const [formData, setFormData] = useState({
-    projectName: project?.name || '',
-    projectCode: project?.code || '',
+  const [formData] = useState({
     paymentNo: generatePaymentNo(),
+    applicationDate: transaction?.date ? new Date(transaction.date).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN'),
+    projectName: project?.name || '',
     purpose: purchase?.content || transaction?.remark || '',
-    basis: '',  // 付款依据，用户手动填
+    basis: '',
+    contactPerson: project?.client || '',
+    contactPhone: '',
     amount: transaction?.amount ? Math.abs(parseFloat(transaction.amount)) : 0,
+    paymentMethod: transaction?.payment_method === 'bank' ? '银行转账' : 
+                    transaction?.payment_method === 'cash' ? '现金' :
+                    transaction?.payment_method === 'check' ? '支票' : '其他',
+    includeTax: true,
+    taxRate: 13,
     supplierName: supplier?.name || '',
     supplierAccount: supplier?.account || '',
     supplierBank: supplier?.bank || '',
+    invoiceStatus: '未开票',
+    remark: transaction?.remark || '',
+    applicant: user?.name || '',
+    finance: '',
+    approver: '',
   });
-
-  const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
   // 金额转大写
   const amountToChinese = (amount: number) => {
@@ -91,150 +99,153 @@ export default function PaymentRequestModal({
     return chineseStr;
   };
 
-  const generateExcel = () => {
-    const data = [
-      ['项目名称+项目编号', `${formData.projectName} (${formData.projectCode})`],
-      ['付款单编号', formData.paymentNo],
-      ['款项用途', formData.purpose],
-      ['付款依据', formData.basis],
-      ['申请金额（大写）', amountToChinese(formData.amount)],
-      ['申请金额（小写）', formData.amount],
-      ['收款单位名称', formData.supplierName],
-      ['收款账号', formData.supplierAccount],
-      ['开户行', formData.supplierBank],
-    ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(data);
-    worksheet['!cols'] = [{ wch: 20 }, { wch: 40 }];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '付款申请单');
-    XLSX.writeFile(workbook, `付款申请单_${formData.paymentNo}.xlsx`);
-    onClose();
+  const handleCopy = () => {
+    // 生成纯文本内容供复制
+    const text = `
+广东汇信电力建设有限公司
+付款申请单
+
+付款单编号：${formData.paymentNo}
+申请日期：${formData.applicationDate}
+工程名称：${formData.projectName}
+款项用途：${formData.purpose}
+付款依据：${formData.basis}
+项目联系人：${formData.contactPerson}
+联系电话：${formData.contactPhone}
+
+申请金额（大写）：${amountToChinese(formData.amount)}
+申请金额（小写）：¥${formData.amount.toFixed(2)}
+
+支付方式：${formData.paymentMethod}
+是否含税：${formData.includeTax ? '含税' : '不含税'}      税率：${formData.taxRate}%
+
+收款单位：${formData.supplierName}
+收款账号：${formData.supplierAccount}
+收款人开户行：${formData.supplierBank}
+开票情况：${formData.invoiceStatus}
+
+备注：${formData.remark}
+
+申请人：${formData.applicant}
+财务：${formData.finance}
+审批：${formData.approver}
+    `;
+    navigator.clipboard.writeText(text);
+    alert('已复制到剪贴板');
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-semibold">付款申请单</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCopy}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              复制全部
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          </div>
         </div>
         
         <div className="p-6 overflow-auto flex-1">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">1. 项目名称+项目编号</label>
-              <input
-                type="text"
-                value={formData.projectName}
-                onChange={(e) => handleChange('projectName', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                placeholder="项目名称 (项目编号)"
-              />
-              <input
-                type="text"
-                value={formData.projectCode}
-                onChange={(e) => handleChange('projectCode', e.target.value)}
-                className="w-full mt-2 px-3 py-2 border rounded-lg"
-                placeholder="项目编号"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">2. 付款单编号</label>
-              <input
-                type="text"
-                value={formData.paymentNo}
-                onChange={(e) => handleChange('paymentNo', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">3. 款项用途</label>
-              <input
-                type="text"
-                value={formData.purpose}
-                onChange={(e) => handleChange('purpose', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">4. 付款依据</label>
-              <input
-                type="text"
-                value={formData.basis}
-                onChange={(e) => handleChange('basis', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                placeholder="合同名称/合同号"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">5. 申请金额（大写）</label>
-              <input
-                type="text"
-                value={amountToChinese(formData.amount)}
-                readOnly
-                className="w-full px-3 py-2 border rounded-lg bg-gray-50"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">6. 申请金额（小写）</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => handleChange('amount', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">7. 收款单位名称</label>
-              <input
-                type="text"
-                value={formData.supplierName}
-                onChange={(e) => handleChange('supplierName', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">8. 收款账号</label>
-              <input
-                type="text"
-                value={formData.supplierAccount}
-                onChange={(e) => handleChange('supplierAccount', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">9. 开户行</label>
-              <input
-                type="text"
-                value={formData.supplierBank}
-                onChange={(e) => handleChange('supplierBank', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold">广东汇信电力建设有限公司</h2>
+            <h3 className="text-xl font-semibold mt-2">付款申请单</h3>
+            <p className="text-xs text-gray-500 mt-1">编号规则：HXXT + 年月日 + 流水号</p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">付款单编号</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.paymentNo}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">申请日期</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.applicationDate}</div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">工程名称</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.projectName}</div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">款项用途</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.purpose}</div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">付款依据（合同名称/合同号）</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.basis || '-'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">项目联系人</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.contactPerson}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">联系电话</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.contactPhone || '-'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">申请金额（小写）</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">¥{formData.amount.toFixed(2)}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">申请金额（大写）</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{amountToChinese(formData.amount)}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">支付方式</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.paymentMethod}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">是否含税</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">
+                  {formData.includeTax ? '含税' : '不含税'}　税率：{formData.taxRate}%
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">收款单位</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierName}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">收款账号</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierAccount}</div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">收款人开户行</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.supplierBank}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">开票情况</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.invoiceStatus}</div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">备注</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.remark || '-'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">申请人</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.applicant}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">财务</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.finance || '______'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">审批</label>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.approver || '______'}</div>
+              </div>
             </div>
           </div>
         </div>
         
         <div className="flex justify-end gap-3 p-4 border-t">
           <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
-            取消
-          </button>
-          <button
-            onClick={generateExcel}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            生成并下载
+            关闭
           </button>
         </div>
       </div>
