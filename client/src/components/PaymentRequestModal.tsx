@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
 
 interface PaymentRequestModalProps {
   isOpen: boolean;
@@ -34,6 +33,7 @@ export default function PaymentRequestModal({
     paymentNo: generatePaymentNo(),
     applicationDate: transaction?.date ? new Date(transaction.date).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN'),
     projectName: project?.name || '',
+    projectCode: project?.code || '',
     purpose: purchase?.content || transaction?.remark || '',
     basis: '',
     contactPerson: project?.client || '',
@@ -100,38 +100,17 @@ export default function PaymentRequestModal({
   };
 
   const handleCopy = () => {
-    // 生成纯文本内容供复制
-    const text = `
-广东汇信电力建设有限公司
-付款申请单
-
-付款单编号：${formData.paymentNo}
-申请日期：${formData.applicationDate}
-工程名称：${formData.projectName}
-款项用途：${formData.purpose}
-付款依据：${formData.basis}
-项目联系人：${formData.contactPerson}
-联系电话：${formData.contactPhone}
-
-申请金额（大写）：${amountToChinese(formData.amount)}
-申请金额（小写）：¥${formData.amount.toFixed(2)}
-
-支付方式：${formData.paymentMethod}
-是否含税：${formData.includeTax ? '含税' : '不含税'}      税率：${formData.taxRate}%
-
-收款单位：${formData.supplierName}
-收款账号：${formData.supplierAccount}
-收款人开户行：${formData.supplierBank}
-开票情况：${formData.invoiceStatus}
-
-备注：${formData.remark}
-
-申请人：${formData.applicant}
-财务：${formData.finance}
-审批：${formData.approver}
-    `;
-    navigator.clipboard.writeText(text);
-    alert('已复制到剪贴板');
+    const content = document.getElementById('payment-content');
+    if (!content) return;
+    
+    const range = document.createRange();
+    range.selectNode(content);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    document.execCommand('copy');
+    window.getSelection()?.removeAllRanges();
+    
+    alert('已复制付款申请单内容');
   };
 
   if (!isOpen) return null;
@@ -152,7 +131,7 @@ export default function PaymentRequestModal({
           </div>
         </div>
         
-        <div className="p-6 overflow-auto flex-1">
+        <div id="payment-content" className="p-6 overflow-auto flex-1">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold">广东汇信电力建设有限公司</h2>
             <h3 className="text-xl font-semibold mt-2">付款申请单</h3>
@@ -171,7 +150,9 @@ export default function PaymentRequestModal({
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">工程名称</label>
-                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">{formData.projectName}</div>
+                <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">
+                  {formData.projectName}{formData.projectCode ? `（${formData.projectCode}）` : ''}
+                </div>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">款项用途</label>
