@@ -148,58 +148,52 @@
         
         // 从OCR结果中提取付款关键信息
         function extractPaymentFields(ocrResult) {
-            const words = ocrResult.words_result || {};
-            // 将所有识别出的文本拼接成一个大字符串
-            let fullText = '';
-            for (const key in words) {
-                const item = words[key];
-                if (typeof item === 'string') {
-                    fullText += item + '\n';
-                } else if (item.word) {
-                    fullText += item.word + '\n';
-                }
+    const wordsArray = ocrResult.words_result || [];
+    
+    let amount = '';
+    let date = '';
+    let counterpartyName = '';
+    let remark = '';
+    
+    for (let i = 0; i < wordsArray.length; i++) {
+        const word = wordsArray[i].words || '';
+        
+        // 提取金额：找“金额（小写）：”后面的值
+        if (word.includes('金额（小写）') || word.includes('金额(小写)')) {
+            if (i + 1 < wordsArray.length) {
+                amount = wordsArray[i + 1].words || '';
             }
-            
-            console.log('识别到的完整文本:', fullText);
-            
-            // 提取金额（找"金额(小写)"后面的数字，或直接找数字模式）
-            let amount = '';
-            const amountMatch = fullText.match(/金额\(小写\)[\s:：]*([\d,]+\.?\d*)/);
-            if (amountMatch) {
-                amount = amountMatch[1].replace(/,/g, '');
-            } else {
-                const numberMatch = fullText.match(/(\d{1,3}(?:,\d{3})*\.\d{2})/);
-                if (numberMatch) amount = numberMatch[1].replace(/,/g, '');
-            }
-            
-            // 提取日期
-            let date = '';
-            const dateMatch = fullText.match(/交易日期[\s:：]*(\d{4}-\d{2}-\d{2})/);
-            if (dateMatch) {
-                date = dateMatch[1];
-            } else {
-                const chnDateMatch = fullText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-                if (chnDateMatch) {
-                    date = `${chnDateMatch[1]}-${chnDateMatch[2].padStart(2, '0')}-${chnDateMatch[3].padStart(2, '0')}`;
-                }
-            }
-            
-            // 提取收款人名称
-            let counterpartyName = '';
-            const payeeMatch = fullText.match(/收款人名称[\s:：]*([^\n\r]+)/);
-            if (payeeMatch) {
-                counterpartyName = payeeMatch[1].trim();
-            }
-            
-            // 提取备注
-            let remark = '';
-            const remarkMatch = fullText.match(/备注[\s:：]*([^\n\r]+)/);
-            if (remarkMatch) {
-                remark = remarkMatch[1].trim();
-            }
-            
-            return { amount, date, counterpartyName, remark, fullText };
         }
+        
+        // 提取日期：找“交易日期：”后面的值
+        if (word.includes('交易日期')) {
+            if (i + 1 < wordsArray.length) {
+                date = wordsArray[i + 1].words || '';
+            }
+        }
+        
+        // 提取收款方：找“收款人名称：”后面的值
+        if (word.includes('收款人名称')) {
+            if (i + 1 < wordsArray.length) {
+                counterpartyName = wordsArray[i + 1].words || '';
+            }
+        }
+        
+        // 提取备注：找“备注：”后面的值
+        if (word.includes('备注')) {
+            if (i + 1 < wordsArray.length) {
+                remark = wordsArray[i + 1].words || '';
+            }
+        }
+    }
+    
+    // 如果金额包含逗号（如 28,000.00），去掉逗号
+    if (amount) {
+        amount = amount.replace(/,/g, '');
+    }
+    
+    return { amount, date, counterpartyName, remark };
+}
         
         // 匹配供应商
         async function matchSupplier(supplierName) {
