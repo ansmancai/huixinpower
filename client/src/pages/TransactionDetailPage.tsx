@@ -15,6 +15,7 @@ export default function TransactionDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [supplier, setSupplier] = useState<any>(null);
   const [purchase, setPurchase] = useState<any>(null);
+  const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
@@ -58,6 +59,14 @@ export default function TransactionDetailPage() {
             .eq('id', txData.purchase_id)
             .single();
           setPurchase(purchaseData);
+
+          // 根据采购单 ID 查询关联的发票
+          const { data: invoicesData } = await supabase
+            .from('invoices')
+            .select('id, invoice_no, total_amount, status, invoice_date')
+            .eq('purchase_id', txData.purchase_id)
+            .order('invoice_date', { ascending: false });
+          setRelatedInvoices(invoicesData || []);
         }
       } catch (error) {
         console.error('加载交易详情失败', error);
@@ -147,6 +156,13 @@ export default function TransactionDetailPage() {
     return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
   };
 
+  const invoiceStatusMap: Record<string, string> = {
+    unpaid: '未付款',
+    paid: '已付款',
+    partial: '部分付款',
+    cancelled: '作废',
+  };
+
   const typeMap: Record<string, { label: string; color: string; bg: string }> = {
     payment: { label: '付款', color: 'text-red-600', bg: 'bg-red-50' },
     receipt: { label: '收款', color: 'text-green-600', bg: 'bg-green-50' },
@@ -181,18 +197,17 @@ export default function TransactionDetailPage() {
             ← 返回交易列表
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">交易详情</h1>
-          <p className="text-gray-500">交易编号：{transaction.transaction_no || id?.slice(0, 8)}</p>
+          <p className="text-gray-500">交易编号：{transaction.transaction_no || transaction.receipt_no || id?.slice(0, 8)}</p>
         </div>
         <div className="flex gap-2">
           {transaction.type === 'payment' && (
-  <button
-    onClick={() => setShowPaymentModal(true)}
-    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-  >
-    📄 生成付款申请单
-  </button>
-       
-)}
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              📄 生成付款申请单
+            </button>
+          )}
           {canEdit && (
             <button
               onClick={() => navigate(`/transactions/${id}/edit`)}
@@ -211,14 +226,14 @@ export default function TransactionDetailPage() {
           )}
         </div>
         <PaymentRequestModal
-      isOpen={showPaymentModal}
-      onClose={() => setShowPaymentModal(false)}
-      transaction={transaction}
-      project={project}
-      supplier={supplier}
-      purchase={purchase}
-      user={user}
-    /> 
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          transaction={transaction}
+          project={project}
+          supplier={supplier}
+          purchase={purchase}
+          user={user}
+        /> 
       </div>
 
       {/* 交易基本信息 */}
@@ -288,6 +303,52 @@ export default function TransactionDetailPage() {
           </div>
         )}
       </div>
+
+      {/* 可能关联的发票 */}
+      {relatedInvoices.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold mb-4">📄 可能关联的发票</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm">发票号码</th>
+                  <th className="px-4 py-2 text-right text-sm">金额</th>
+                  <th className="px-4 py-2 text-left text-sm">开票日期</th>
+                  <th className="px-4 py-2 text-center text-sm">状态</th>
+                  <th className="px-4 py-2 text-center text-sm">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatedInvoices.map((inv) => (
+                  <tr key={inv.id} className="border-t">
+                    <td className="px-4 py-2 text-sm font-mono">{inv.invoice_no}</td>
+                    <td className="px-4 py-2 text-right">{formatAmount(parseFloat(inv.total_amount))}</td>
+                    <td className="px-4 py-2 text-sm">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {invoiceStatusMap[inv.status] || inv.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <Link to={`/invoices/${inv.id}`} className="text-blue-600 hover:underline text-sm">
+                        查看详情
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            此付款单关联的采购单对应的发票列表（仅供参考，不参与金额自动核销）
+          </p>
+        </div>
+      )}
     </div>
   );
 }
