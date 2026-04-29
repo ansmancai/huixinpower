@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../api/client';
 
 interface PaymentRequestModalProps {
   isOpen: boolean;
@@ -19,6 +20,24 @@ export default function PaymentRequestModal({
   purchase,
   user,
 }: PaymentRequestModalProps) {
+  const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
+
+  // 加载关联的发票
+  useEffect(() => {
+    const loadRelatedInvoices = async () => {
+      if (!purchase?.id) return;
+      const { data } = await supabase
+        .from('invoices')
+        .select('id, invoice_no, total_amount, status, invoice_date')
+        .eq('purchase_id', purchase.id)
+        .order('invoice_date', { ascending: false });
+      setRelatedInvoices(data || []);
+    };
+    if (isOpen && purchase?.id) {
+      loadRelatedInvoices();
+    }
+  }, [isOpen, purchase?.id]);
+
   const [formData] = useState({
     paymentNo: transaction?.receipt_no || transaction?.id?.slice(0, 8) || '',
     applicationDate: transaction?.date ? new Date(transaction.date).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN'),
@@ -86,6 +105,17 @@ export default function PaymentRequestModal({
     }
     
     return chineseStr;
+  };
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
+  };
+
+  const invoiceStatusMap: Record<string, string> = {
+    unpaid: '未付款',
+    paid: '已付款',
+    partial: '部分付款',
+    cancelled: '作废',
   };
 
   const handleCopy = () => {
@@ -209,6 +239,46 @@ export default function PaymentRequestModal({
               </div>
             </div>
           </div>
+
+          {/* 可能关联的发票 */}
+          {relatedInvoices.length > 0 && (
+            <div className="mt-6 pt-4 border-t">
+              <h4 className="text-md font-semibold mb-3">📄 可能关联的发票</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">发票号码</th>
+                      <th className="px-3 py-2 text-right">金额</th>
+                      <th className="px-3 py-2 text-left">开票日期</th>
+                      <th className="px-3 py-2 text-center">状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {relatedInvoices.map((inv) => (
+                      <tr key={inv.id} className="border-t">
+                        <td className="px-3 py-2 font-mono">{inv.invoice_no}</td>
+                        <td className="px-3 py-2 text-right">{formatAmount(parseFloat(inv.total_amount))}</td>
+                        <td className="px-3 py-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {invoiceStatusMap[inv.status] || inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                此付款单关联的采购单对应的发票（仅供参考）
+              </p>
+            </div>
+          )}
         </div>
         
         <div className="flex justify-end gap-3 p-4 border-t">
