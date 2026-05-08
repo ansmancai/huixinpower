@@ -166,7 +166,7 @@ export default function PaymentRequestModal({
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">工程名称</label>
                 <div className="mt-1 px-3 py-2 border rounded-lg bg-gray-50">
-                  {formData.projectName}{formData.projectCode ? `（${formData.projectCode}）` : ''}
+                  {formData.projectName ? `${formData.projectName}${formData.projectCode ? `（${formData.projectCode}）` : ''}` : '-'}
                 </div>
               </div>
               <div className="col-span-2">
