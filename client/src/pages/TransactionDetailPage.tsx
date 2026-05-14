@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import * as XLSX from 'xlsx';
@@ -9,6 +9,7 @@ import PaymentRequestModal from '../components/PaymentRequestModal';
 export default function TransactionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,13 @@ export default function TransactionDetailPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
+
+  // 构建返回清单页的 URL（带上原来的参数）
+  const getBackUrl = () => {
+    const params = new URLSearchParams(location.search);
+    const queryString = params.toString();
+    return `/transactions${queryString ? `?${queryString}` : ''}`;
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -82,7 +90,7 @@ export default function TransactionDetailPage() {
     if (!confirm(`确定要删除交易记录 "${transaction?.transaction_no || id}" 吗？`)) return;
     try {
       await supabase.from('transactions').delete().eq('id', id);
-      navigate('/transactions');
+      navigate(getBackUrl());
     } catch (error: any) {
       alert(error.message);
     }
@@ -193,7 +201,7 @@ export default function TransactionDetailPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <Link to="/transactions" className="text-blue-600 hover:underline mb-2 inline-block">
+          <Link to={getBackUrl()} className="text-blue-600 hover:underline mb-2 inline-block">
             ← 返回交易列表
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">交易详情</h1>
@@ -210,7 +218,7 @@ export default function TransactionDetailPage() {
           )}
           {canEdit && (
             <button
-              onClick={() => navigate(`/transactions/${id}/edit`)}
+              onClick={() => navigate(`/transactions/${id}/edit?${location.search.substring(1)}`)}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               编辑交易
