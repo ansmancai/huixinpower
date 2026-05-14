@@ -200,7 +200,7 @@ export default function TransactionsPage() {
         <div className="w-64">
           <SearchSelect
             value={projectId}
-            onChange={(val) => setProjectId(val)}
+            onChange={(val) => setProjectId(val || 'all')}
             onSearch={searchProjects}
             placeholder="选择项目"
             displayName={selectedProjectName}
@@ -211,7 +211,7 @@ export default function TransactionsPage() {
         <div className="w-64">
           <SearchSelect
             value={supplierId}
-            onChange={(val) => setSupplierId(val)}
+            onChange={(val) => setSupplierId(val || 'all')} 
             onSearch={searchSuppliers}
             placeholder="选择供应商"
             displayName={selectedSupplierName}
