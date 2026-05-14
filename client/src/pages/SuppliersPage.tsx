@@ -142,27 +142,45 @@ export default function SuppliersPage() {
       {loading ? <div className="text-center py-12">加载中...</div> : (
         <div className="bg-white rounded-lg shadow overflow-x-auto">
           <table className="w-full min-w-[1000px]">
-            <thead className="bg-gray-50"><tr>
-              <th className="px-4 py-3 text-left">供应商编号</th><th className="px-4 py-3 text-left">供应商名称</th><th className="px-4 py-3 text-left">类别</th>
-              <th className="px-4 py-3 text-left">联系人</th><th className="px-4 py-3 text-left">联系电话</th><th className="px-4 py-3 text-right">已采购</th>
-              <th className="px-4 py-3 text-right">已付款</th><th className="px-4 py-3 text-right">欠款</th><th className="px-4 py-3 text-right">欠票</th><th className="px-4 py-3 text-center">操作</th>
-            </table></thead>
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left">供应商编号</th>
+                <th className="px-4 py-3 text-left">供应商名称</th>
+                <th className="px-4 py-3 text-left">类别</th>
+                <th className="px-4 py-3 text-left">联系人</th>
+                <th className="px-4 py-3 text-left">联系电话</th>
+                <th className="px-4 py-3 text-right">已采购</th>
+                <th className="px-4 py-3 text-right">已付款</th>
+                <th className="px-4 py-3 text-right">欠款</th>
+                <th className="px-4 py-3 text-right">欠票</th>
+                <th className="px-4 py-3 text-center">操作</th>
+              </tr>
+            </thead>
             <tbody className="divide-y">
               {suppliers.map(s => {
                 const purchased = s.purchasedAmount || 0;
                 const paid = s.paidAmount || 0;
                 const invoiced = s.invoicedAmount || 0;
-                return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 text-sm">{s.code}</td>
-                  <td className="px-4 py-3"><Link to={`/suppliers/${s.id}`} className="text-blue-600 hover:underline">{s.name}</Link></td>
-                  <td className="px-4 py-3 text-sm">{categoryMap[s.category] || s.category}</td>
-                  <td className="px-4 py-3 text-sm">{s.contact_person || '-'}</td>
-                  <td className="px-4 py-3 text-sm">{s.phone || '-'}</td>
-                  <td className="px-4 py-3 text-right">{formatAmount(purchased)}</td>
-                  <td className="px-4 py-3 text-right text-green-600">{formatAmount(paid)}</td>
-                  <td className="px-4 py-3 text-right text-red-600">{formatAmount(purchased - paid)}</td>
-                  <td className="px-4 py-3 text-right text-orange-600">{formatAmount(purchased - invoiced)}</td>
-                  <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><Link to={`/suppliers/${s.id}`} className="text-blue-600 text-sm">查看</Link>{canEdit && <Link to={`/suppliers/${s.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}{user?.role === 'admin' && <button onClick={() => handleDelete(s.id, s.name)} className="text-red-600 text-sm">删除</button>}</div></td>
-                </tr>);
+                return (
+                  <tr key={s.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm">{s.code}</td>
+                    <td className="px-4 py-3"><Link to={`/suppliers/${s.id}`} className="text-blue-600 hover:underline">{s.name}</Link></td>
+                    <td className="px-4 py-3 text-sm">{categoryMap[s.category] || s.category}</td>
+                    <td className="px-4 py-3 text-sm">{s.contact_person || '-'}</td>
+                    <td className="px-4 py-3 text-sm">{s.phone || '-'}</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(purchased)}</td>
+                    <td className="px-4 py-3 text-right text-green-600">{formatAmount(paid)}</td>
+                    <td className="px-4 py-3 text-right text-red-600">{formatAmount(purchased - paid)}</td>
+                    <td className="px-4 py-3 text-right text-orange-600">{formatAmount(purchased - invoiced)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-2">
+                        <Link to={`/suppliers/${s.id}`} className="text-blue-600 text-sm">查看</Link>
+                        {canEdit && <Link to={`/suppliers/${s.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
+                        {user?.role === 'admin' && <button onClick={() => handleDelete(s.id, s.name)} className="text-red-600 text-sm">删除</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
               })}
             </tbody>
           </table>
