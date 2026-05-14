@@ -116,7 +116,8 @@ export default function TransactionsPage() {
       if (keyword) {
         baseQuery = baseQuery.or(
     `remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%,` +
-    `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%`;
+    `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%`
+    );
       }
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
