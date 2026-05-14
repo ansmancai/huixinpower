@@ -24,6 +24,17 @@ export default function TransactionsPage() {
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
+  // 支付方式映射表（英文 → 中文）
+  const paymentMethodMap: Record<string, string> = {
+    bank: '银行转账',
+    cash: '现金',
+    wechat: '微信',
+    alipay: '支付宝',
+    draft: '汇票',
+    check: '支票',
+    other: '其他',
+  };
+
   // 从 URL 读取参数并恢复状态
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -186,7 +197,9 @@ export default function TransactionsPage() {
                         {formatAmount(Math.abs(parseFloat(t.amount)))}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm">{t.payment_method}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {paymentMethodMap[t.payment_method] || t.payment_method}
+                    </td>
                     <td className="px-4 py-3 text-sm">{t.projects?.name || '-'}</td>
                     <td className="px-4 py-3 text-sm">{t.suppliers?.name || '-'}</td>
                     <td className="px-4 py-3 text-center">
