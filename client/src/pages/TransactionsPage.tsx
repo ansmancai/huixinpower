@@ -114,7 +114,9 @@ export default function TransactionsPage() {
       let baseQuery = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
       if (keyword) {
-        baseQuery = baseQuery.or(`remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%`);
+        baseQuery = baseQuery.or(
+    `remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%,` +
+    `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%`;
       }
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
@@ -185,7 +187,7 @@ export default function TransactionsPage() {
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
         <input
           type="text"
-          placeholder="搜索备注、编号..."
+          placeholder="搜索备注、编号、项目、供应商..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
