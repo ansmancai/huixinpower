@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../api/client';
 import ExportButton from '../components/ExportButton';
 import ImportModal from '../components/ImportModal';
+import SearchSelect from '../components/SearchSelect';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -17,14 +18,14 @@ export default function TransactionsPage() {
   const [type, setType] = useState('all');
   const [projectId, setProjectId] = useState('all');
   const [supplierId, setSupplierId] = useState('all');
-  const [projects, setProjects] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [selectedProjectName, setSelectedProjectName] = useState('');
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
   const pageSize = 20;
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
-  // 支付方式映射表（英文 → 中文）
+  // 支付方式映射表
   const paymentMethodMap: Record<string, string> = {
     bank: '银行转账',
     cash: '现金',
@@ -51,17 +52,61 @@ export default function TransactionsPage() {
     if (supplierIdParam && supplierIdParam !== 'all') setSupplierId(supplierIdParam);
   }, [location.search]);
 
+  // 搜索项目
+  const searchProjects = async (searchKeyword: string) => {
+    if (!searchKeyword) return [];
+    const { data } = await supabase
+      .from('projects')
+      .select('id, name, code')
+      .ilike('name', `%${searchKeyword}%`)
+      .limit(20);
+    return data || [];
+  };
+
+  // 搜索供应商
+  const searchSuppliers = async (searchKeyword: string) => {
+    if (!searchKeyword) return [];
+    const { data } = await supabase
+      .from('suppliers')
+      .select('id, name, code')
+      .ilike('name', `%${searchKeyword}%`)
+      .limit(20);
+    return data || [];
+  };
+
+  // 加载项目名称（用于回显）
   useEffect(() => {
-    const loadOptions = async () => {
-      const [projRes, supRes] = await Promise.all([
-        supabase.from('projects').select('id, name').limit(100),
-        supabase.from('suppliers').select('id, name').limit(100),
-      ]);
-      setProjects(projRes.data || []);
-      setSuppliers(supRes.data || []);
+    const loadProjectName = async () => {
+      if (projectId && projectId !== 'all') {
+        const { data } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('id', projectId)
+          .single();
+        if (data) setSelectedProjectName(data.name);
+      } else {
+        setSelectedProjectName('');
+      }
     };
-    loadOptions();
-  }, []);
+    loadProjectName();
+  }, [projectId]);
+
+  // 加载供应商名称（用于回显）
+  useEffect(() => {
+    const loadSupplierName = async () => {
+      if (supplierId && supplierId !== 'all') {
+        const { data } = await supabase
+          .from('suppliers')
+          .select('name')
+          .eq('id', supplierId)
+          .single();
+        if (data) setSelectedSupplierName(data.name);
+      } else {
+        setSelectedSupplierName('');
+      }
+    };
+    loadSupplierName();
+  }, [supplierId]);
 
   const loadTransactions = async () => {
     setLoading(true);
@@ -150,14 +195,28 @@ export default function TransactionsPage() {
           <option value="payment">付款</option>
           <option value="receipt">收款</option>
         </select>
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部项目</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部供应商</option>
-          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        
+        {/* 项目下拉框 - 带搜索功能 */}
+        <div className="w-64">
+          <SearchSelect
+            value={projectId}
+            onChange={(val) => setProjectId(val)}
+            onSearch={searchProjects}
+            placeholder="选择项目"
+            displayName={selectedProjectName}
+          />
+        </div>
+        
+        {/* 供应商下拉框 - 带搜索功能 */}
+        <div className="w-64">
+          <SearchSelect
+            value={supplierId}
+            onChange={(val) => setSupplierId(val)}
+            onSearch={searchSuppliers}
+            placeholder="选择供应商"
+            displayName={selectedSupplierName}
+          />
+        </div>
       </div>
 
       {loading ? (
@@ -185,7 +244,7 @@ export default function TransactionsPage() {
                       <Link to={getDetailUrl(t.id)} className="text-blue-600 hover:underline">
                         {t.receipt_no || t.id.slice(0, 8)}
                       </Link>
-                    </td>
+                     </td>
                     <td className="px-4 py-3 text-sm">{new Date(t.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={t.type === 'payment' ? 'text-red-600' : 'text-green-600'}>
