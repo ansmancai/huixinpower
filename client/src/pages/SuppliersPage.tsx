@@ -26,7 +26,9 @@ export default function SuppliersPage() {
       let query = supabase.from('suppliers').select('*');
       
       if (keyword) {
-        query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%`);
+        query = query.or(
+          `name.ilike.%${keyword}%,code.ilike.%${keyword}%,contact_person.ilike.%${keyword}%`
+        );
       }
       if (category && category !== 'all') {
         query = query.eq('category', category);
@@ -123,7 +125,7 @@ export default function SuppliersPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <input type="text" placeholder="搜索供应商名称、编号..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" />
+        <input type="text" placeholder="搜索供应商名称、编号、联系人..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" />
         <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 border rounded-lg">
           <option value="all">全部类别</option>
           <option value="equipment">设备材料</option>
@@ -144,7 +146,7 @@ export default function SuppliersPage() {
               <th className="px-4 py-3 text-left">供应商编号</th><th className="px-4 py-3 text-left">供应商名称</th><th className="px-4 py-3 text-left">类别</th>
               <th className="px-4 py-3 text-left">联系人</th><th className="px-4 py-3 text-left">联系电话</th><th className="px-4 py-3 text-right">已采购</th>
               <th className="px-4 py-3 text-right">已付款</th><th className="px-4 py-3 text-right">欠款</th><th className="px-4 py-3 text-right">欠票</th><th className="px-4 py-3 text-center">操作</th>
-            </tr></thead>
+            </table></thead>
             <tbody className="divide-y">
               {suppliers.map(s => {
                 const purchased = s.purchasedAmount || 0;
