@@ -1,0 +1,42 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # 每6小时执行一次
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query multiple Supabase tables to keep database awake
+        run: |
+          echo "========== 开始唤醒数据库 =========="
+          
+          # 访问 projects 表
+          echo ">>> 访问 projects 表"
+          curl -s -I "https://sjgyvhceixyukfgplpts.supabase.co/rest/v1/projects?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY"
+          
+          # 访问 suppliers 表
+          echo ">>> 访问 suppliers 表"
+          curl -s -I "https://sjgyvhceixyukfgplpts.supabase.co/rest/v1/suppliers?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY"
+          
+          # 访问 purchases 表
+          echo ">>> 访问 purchases 表"
+          curl -s -I "https://sjgyvhceixyukfgplpts.supabase.co/rest/v1/purchases?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY"
+          
+          # 访问 invoices 表
+          echo ">>> 访问 invoices 表"
+          curl -s -I "https://sjgyvhceixyukfgplpts.supabase.co/rest/v1/invoices?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY"
+          
+          # 访问 transactions 表
+          echo ">>> 访问 transactions 表"
+          curl -s -I "https://sjgyvhceixyukfgplpts.supabase.co/rest/v1/transactions?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3l2aGNlaXh5dWtmZ3BscHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTg5ODcsImV4cCI6MjA4OTkzNDk4N30.1X0OGO5HGF22SHQlAPwDKsBIRW4DzDHWYm-cl6m-9YY"
+          
+          echo "========== 唤醒完成 =========="
