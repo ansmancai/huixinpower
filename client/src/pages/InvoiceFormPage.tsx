@@ -283,11 +283,41 @@ export default function InvoiceFormPage() {
         updates.supplier_id = '';
       }
       
+      // ========== 新增：进项发票自动匹配供应商 ==========
+      let matchedSupplierId = '';
+      let matchedSupplierName = '';
+      
+      if (detectedType === 'input' && words.SellerName) {
+        // 根据销售方名称匹配供应商
+        const { data: matchedSuppliers } = await supabase
+          .from('suppliers')
+          .select('id, name')
+          .ilike('name', `%${words.SellerName}%`)
+          .limit(1);
+        
+        if (matchedSuppliers && matchedSuppliers.length > 0) {
+          matchedSupplierId = matchedSuppliers[0].id;
+          matchedSupplierName = matchedSuppliers[0].name;
+          updates.supplier_id = matchedSupplierId;
+          // 如果对方名称还没填，用匹配到的供应商名称
+          if (!updates.supplier_name) {
+            updates.supplier_name = matchedSupplierName;
+          }
+        }
+      }
+      // ========== 新增结束 ==========
+      
       setFormData(prev => ({
         ...prev,
         ...updates,
         type: detectedType
       }));
+      
+      // 更新供应商选项，让 SearchSelect 能正确显示选中的供应商
+      if (matchedSupplierId) {
+        setSupplierOptions([{ id: matchedSupplierId, name: matchedSupplierName }]);
+        setSelectedSupplierName(matchedSupplierName);
+      }
       
       alert(`✅ 识别成功！\n发票类型：${detectedType === 'input' ? '进项' : '销项'}\n已自动填充表单，请核对并补充信息。`);
       
@@ -574,7 +604,7 @@ export default function InvoiceFormPage() {
                     purchase_id: val,
                     supplier_name: option?.supplier_name || '',
                     supplier_id: option?.supplier_id || '',
-                    amount: option?.amount || formData.amount,
+                    // 注意：不覆盖金额，保持 OCR 识别的值
                   });
                 }}
                 onSearch={handlePurchaseSearch}
@@ -583,7 +613,7 @@ export default function InvoiceFormPage() {
                 disabled={!formData.project_id}
               />
               {formData.project_id && !formData.purchase_id && (
-                <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商和金额</p>
+                <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商</p>
               )}
             </div>
           )}
