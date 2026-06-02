@@ -10,6 +10,7 @@ export default function InvoiceFormPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -153,15 +154,18 @@ export default function InvoiceFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (file: File) => {
     if (file.type !== 'application/pdf') {
       alert('请上传 PDF 文件');
       return;
     }
     setUploadedFile(file);
     alert('已选择文件，保存时将一起上传');
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileChange(file);
   };
 
   const uploadFile = async (file: File) => {
@@ -173,6 +177,30 @@ export default function InvoiceFormPage() {
     if (error) throw error;
     return data.path;
   };
+
+  // ==================== 拖拽上传相关 ====================
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      handleFileChange(file);
+    }
+  };
+  // ==================== 拖拽上传结束 ====================
 
   // ==================== OCR 识别相关函数 ====================
   const recognizeInvoice = async (file: File): Promise<any> => {
@@ -396,7 +424,15 @@ export default function InvoiceFormPage() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
 
-      <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
+      <div 
+        className={`mb-6 bg-gray-50 rounded-lg p-4 border border-dashed transition-colors ${
+          dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
         <label className="block text-sm font-medium mb-2">📄 上传发票 PDF（可选）</label>
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3 flex-wrap">
@@ -404,7 +440,7 @@ export default function InvoiceFormPage() {
               type="file"
               ref={fileInputRef}
               accept=".pdf"
-              onChange={handleFileChange}
+              onChange={handleFileInputChange}
               disabled={uploading || ocrLoading}
               className="flex-1"
             />
@@ -433,7 +469,7 @@ export default function InvoiceFormPage() {
           )}
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          支持 PDF 格式。选择文件后点击「识别发票」按钮，系统将自动识别并填写发票信息
+          支持 PDF 格式。点击选择文件，或直接拖拽 PDF 文件到此处。选择文件后点击「识别发票」按钮，系统将自动识别并填写发票信息
         </p>
       </div>
 
