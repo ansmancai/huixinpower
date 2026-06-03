@@ -33,45 +33,34 @@ export default function InvoicesPage() {
   }, []);
 
   const loadInvoices = async () => {
-  setLoading(true);
-  try {
-    // 构建基础查询（不带分页）
-    let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name), file_path', { count: 'exact' });
-    
-    if (keyword) {
-      const { data: matchedProjects } = await supabase.from('projects').select('id').ilike('name', `%${keyword}%`);
-      const { data: matchedSuppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${keyword}%`);
-      const projectIds = matchedProjects?.map(p => p.id) || [];
-      const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+    setLoading(true);
+    try {
+      let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name), file_path', { count: 'exact' });
       
-      const conditions = [`invoice_no.ilike.%${keyword}%`];
-      if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
-      if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
-      baseQuery = baseQuery.or(conditions.join(','));
+      if (keyword) {
+        // 搜索发票号码和对方名称
+        baseQuery = baseQuery.or(`invoice_no.ilike.%${keyword}%,supplier_name.ilike.%${keyword}%`);
+      }
+      
+      if (type !== 'all') baseQuery = baseQuery.eq('type', type);
+      if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
+      if (status !== 'all') baseQuery = baseQuery.eq('status', status);
+      
+      const { count: totalCount } = await baseQuery;
+      
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data: pageData } = await baseQuery.range(from, to).order('invoice_date', { ascending: false });
+      
+      setInvoices(pageData || []);
+      setTotal(totalCount || 0);
+    } catch (error) {
+      console.error('加载发票失败', error);
+    } finally {
+      setLoading(false);
     }
-    
-    if (type !== 'all') baseQuery = baseQuery.eq('type', type);
-    if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
-    if (status !== 'all') baseQuery = baseQuery.eq('status', status);
-    
-    // 获取全部数据用于统计（这里只用于计数，不需要额外统计）
-    const { count: totalCount } = await baseQuery;
-    
-    // 分页数据
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    const { data: pageData } = await baseQuery.range(from, to).order('invoice_date', { ascending: false });
-    
-    setInvoices(pageData || []);
-    setTotal(totalCount || 0);
-  } catch (error) {
-    console.error('加载发票失败', error);
-  } finally {
-    setLoading(false);
-  }
- 
-};
-// ========== 添加以下代码 ==========
+  };
+
   // 加载数据
   useEffect(() => {
     loadInvoices();
@@ -87,9 +76,9 @@ export default function InvoicesPage() {
       alert(error.message);
     }
   };
-  // ========== 添加结束 
+
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
-  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款',cancelled: '作废' };
+  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款', cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
   const totalPages = Math.ceil(total / pageSize);
 
@@ -123,7 +112,13 @@ export default function InvoicesPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
-        <input type="text" placeholder="搜索发票号码..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" />
+        <input 
+          type="text" 
+          placeholder="搜索发票号码、对方名称..." 
+          value={keyword} 
+          onChange={(e) => setKeyword(e.target.value)} 
+          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" 
+        />
         <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg">
           <option value="all">全部类型</option>
           <option value="input">进项</option>
@@ -162,48 +157,46 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-               {invoices.map(i => (
-  <tr key={i.id} className="hover:bg-gray-50">
-    <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
-    <td className="px-4 py-3">
-      <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
-        {i.invoice_no}
-      </Link>
-    </td>
-    <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
-    <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
-    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
-    <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
-    <td className="px-4 py-3 text-sm">{i.supplier_name || i.suppliers?.name || '-'}</td>
-    <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
-    {/* 👇 附件列 */}
-    <td className="px-4 py-3 text-center">
-      {i.file_path ? (
-        <a 
-          href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-red-500 hover:text-red-700 text-lg"
-        >
-          📄
-        </a>
-      ) : '-'}
-    </td>
-    {/* 👆 附件列 */}
-    <td className="px-4 py-3 text-center">
-      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
-        {statusMap[i.status] || i.status}
-      </span>
-    </td>
-    <td className="px-4 py-3 text-center whitespace-nowrap">
-  <div className="flex justify-center gap-2">
-    <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
-    {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm whitespace-nowrap">编辑</Link>}
-    {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm whitespace-nowrap">删除</button>}
-  </div>
-</td>
-  </tr>
-))} 
+                {invoices.map(i => (
+                  <tr key={i.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
+                    <td className="px-4 py-3">
+                      <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
+                        {i.invoice_no}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
+                    <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
+                    <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-sm">{i.supplier_name || i.suppliers?.name || '-'}</td>
+                    <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
+                    <td className="px-4 py-3 text-center">
+                      {i.file_path ? (
+                        <a 
+                          href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-red-500 hover:text-red-700 text-lg"
+                        >
+                          📄
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {statusMap[i.status] || i.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <div className="flex justify-center gap-2">
+                        <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
+                        {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm whitespace-nowrap">编辑</Link>}
+                        {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm whitespace-nowrap">删除</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -223,7 +216,6 @@ export default function InvoicesPage() {
         onSuccess={() => { loadInvoices(); setShowImportModal(false); }}
         module="invoices"
         moduleName="发票"
-        
       />
     </div>
   );
