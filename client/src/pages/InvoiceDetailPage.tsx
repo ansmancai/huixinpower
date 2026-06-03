@@ -139,6 +139,10 @@ export default function InvoiceDetailPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">对方名称</p>
+            <p className="font-medium">{invoice.supplier_name || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">关联供应商</p>
             {supplier ? (
               <Link to={`/suppliers/${supplier.id}`} className="text-blue-600 hover:underline">
                 {supplier.name}
@@ -191,18 +195,18 @@ export default function InvoiceDetailPage() {
           </div>
         )}
         {invoice.file_path && (
-  <div className="mt-4 pt-4 border-t">
-    <p className="text-sm text-gray-500">附件</p>
-    <a 
-      href={supabase.storage.from('invoices').getPublicUrl(invoice.file_path).data.publicUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-600 hover:underline mt-1 inline-block"
-    >
-      📄 查看发票文件
-    </a>
-  </div>
-)}
+          <div className="mt-4 pt-4 border-t">
+            <p className="text-sm text-gray-500">附件</p>
+            <a 
+              href={supabase.storage.from('invoices').getPublicUrl(invoice.file_path).data.publicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline mt-1 inline-block"
+            >
+              📄 查看发票文件
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
