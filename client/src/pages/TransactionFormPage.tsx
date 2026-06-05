@@ -30,6 +30,7 @@ export default function TransactionFormPage() {
     project_id: '',
     supplier_id: '',
     purchase_id: '',
+    counterparty_name: '', // 收款时的付款方名称
     remark: '',
   });
 
@@ -269,6 +270,25 @@ export default function TransactionFormPage() {
     loadMatchingPurchases();
   }, [formData.project_id, formData.supplier_id]);
 
+  // 当选择项目时，如果是收款类型，自动填充付款方名称（甲方名称）
+  useEffect(() => {
+    const loadProjectClient = async () => {
+      if (formData.type === 'receipt' && formData.project_id) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('client')
+          .eq('id', formData.project_id)
+          .single();
+        if (project?.client) {
+          setFormData(prev => ({ ...prev, counterparty_name: project.client }));
+        } else {
+          setFormData(prev => ({ ...prev, counterparty_name: '' }));
+        }
+      }
+    };
+    loadProjectClient();
+  }, [formData.project_id, formData.type]);
+
   useEffect(() => {
     if (isEdit && canEdit) {
       const loadTransaction = async () => {
@@ -288,6 +308,7 @@ export default function TransactionFormPage() {
               project_id: data.project_id || '',
               supplier_id: data.supplier_id || '',
               purchase_id: data.purchase_id || '',
+              counterparty_name: data.counterparty_name || '',
               remark: data.remark || '',
             });
             setOriginalAmount(Math.abs(parseFloat(data.amount)));
@@ -402,8 +423,9 @@ export default function TransactionFormPage() {
         amount: amount,
         payment_method: formData.payment_method,
         project_id: formData.project_id || null,
-        supplier_id: formData.supplier_id || null,
-        purchase_id: formData.purchase_id || null,
+        supplier_id: formData.type === 'payment' ? (formData.supplier_id || null) : null,
+        purchase_id: formData.type === 'payment' ? (formData.purchase_id || null) : null,
+        counterparty_name: formData.type === 'receipt' ? (formData.counterparty_name || null) : null,
         remark: formData.remark || null,
         updated_at: new Date().toISOString(),
       };
@@ -527,7 +549,16 @@ export default function TransactionFormPage() {
             <select
               required
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e) => {
+                const newType = e.target.value;
+                setFormData(prev => ({ 
+                  ...prev, 
+                  type: newType,
+                  supplier_id: '',
+                  purchase_id: '',
+                  counterparty_name: '',
+                }));
+              }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               <option value="payment">付款</option>
@@ -561,7 +592,7 @@ export default function TransactionFormPage() {
             <SearchSelect
               value={formData.project_id}
               onChange={(val) => {
-                setFormData({ ...formData, project_id: val, purchase_id: '' });
+                setFormData(prev => ({ ...prev, project_id: val, purchase_id: '', counterparty_name: '' }));
                 const proj = projectOptions.find(p => p.id === val) || projects.find(p => p.id === val);
                 setSelectedProjectName(proj?.name || '');
               }}
@@ -573,58 +604,80 @@ export default function TransactionFormPage() {
             {selectedProjectName && <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>}
           </div>
           
-          <div>
-            <label className="block text-sm font-medium mb-1">关联供应商</label>
-            <SearchSelect
-              value={formData.supplier_id}
-              onChange={(val) => {
-                setFormData({ ...formData, supplier_id: val, purchase_id: '' });
-                const sup = suppliers.find(s => s.id === val);
-                setSelectedSupplierName(sup?.name || '');
-              }}
-              onSearch={searchSuppliers}
-              placeholder="选择供应商"
-              displayName={selectedSupplierName}
-              initialOptions={supplierOptions}
-            />
-            {selectedSupplierName && <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>}
-          </div>
-          
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">关联采购</label>
-            {formData.project_id && formData.supplier_id ? (
-              matchingPurchases.length > 0 ? (
-                <select
-                  value={formData.purchase_id}
-                  onChange={(e) => setFormData({ ...formData, purchase_id: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="">不关联采购</option>
-                  {matchingPurchases.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
-                  该供应商在此项目下暂无采购记录
-                </div>
-              )
-            ) : (
-              <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
-                请先选择项目和供应商，系统将自动列出匹配的采购单
+          {/* 付款时显示：关联供应商 */}
+          {formData.type === 'payment' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">关联供应商</label>
+                <SearchSelect
+                  value={formData.supplier_id}
+                  onChange={(val) => {
+                    setFormData(prev => ({ ...prev, supplier_id: val, purchase_id: '' }));
+                    const sup = suppliers.find(s => s.id === val);
+                    setSelectedSupplierName(sup?.name || '');
+                  }}
+                  onSearch={searchSuppliers}
+                  placeholder="选择供应商"
+                  displayName={selectedSupplierName}
+                  initialOptions={supplierOptions}
+                />
+                {selectedSupplierName && <p className="text-xs text-gray-500 mt-1">已选：{selectedSupplierName}</p>}
               </div>
-            )}
-            {formData.purchase_id && <p className="text-xs text-green-600 mt-1">✅ 已关联采购单</p>}
-          </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">关联采购</label>
+                {formData.project_id && formData.supplier_id ? (
+                  matchingPurchases.length > 0 ? (
+                    <select
+                      value={formData.purchase_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, purchase_id: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="">不关联采购</option>
+                      {matchingPurchases.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                      该供应商在此项目下暂无采购记录
+                    </div>
+                  )
+                ) : (
+                  <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                    请先选择项目和供应商，系统将自动列出匹配的采购单
+                  </div>
+                )}
+                {formData.purchase_id && <p className="text-xs text-green-600 mt-1">✅ 已关联采购单</p>}
+              </div>
+            </>
+          )}
+          
+          {/* 收款时显示：付款方名称 */}
+          {formData.type === 'receipt' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">付款方名称</label>
+              <input
+                type="text"
+                value={formData.counterparty_name}
+                onChange={(e) => setFormData(prev => ({ ...prev, counterparty_name: e.target.value }))}
+                placeholder="付款方名称（甲方）"
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+              {formData.project_id && !formData.counterparty_name && (
+                <p className="text-xs text-gray-500 mt-1">选择项目后自动填充甲方名称，可手动修改</p>
+              )}
+            </div>
+          )}
           
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">备注</label>
             <textarea
               rows={3}
               value={formData.remark}
-              onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
+              onChange={(e) => setFormData(prev => ({ ...prev, remark: e.target.value }))}
               className="w-full px-3 py-2 border rounded-lg"
               placeholder="选填"
             />

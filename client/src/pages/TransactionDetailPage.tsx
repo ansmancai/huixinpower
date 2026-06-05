@@ -282,26 +282,36 @@ export default function TransactionDetailPage() {
               <p className="font-medium">{transaction.project_id || '-'}</p>
             )}
           </div>
+          
+          {/* 对方名称：付款显示供应商，收款显示付款方名称 */}
           <div>
-            <p className="text-sm text-gray-500">供应商</p>
-            {supplier ? (
-              <Link to={`/suppliers/${supplier.id}`} className="text-blue-600 hover:underline">
-                {supplier.name}
-              </Link>
+            <p className="text-sm text-gray-500">对方名称</p>
+            {transaction.type === 'payment' ? (
+              supplier ? (
+                <Link to={`/suppliers/${supplier.id}`} className="text-blue-600 hover:underline">
+                  {supplier.name}
+                </Link>
+              ) : (
+                <p className="font-medium">{transaction.supplier_id || '-'}</p>
+              )
             ) : (
-              <p className="font-medium">{transaction.supplier_id || '-'}</p>
+              <p className="font-medium">{transaction.counterparty_name || '-'}</p>
             )}
           </div>
-          <div>
-            <p className="text-sm text-gray-500">关联采购</p>
-            {purchase ? (
-              <Link to={`/purchases/${purchase.id}`} className="text-blue-600 hover:underline">
-                {purchase.purchase_no}
-              </Link>
-            ) : (
-              <p className="font-medium">{transaction.purchase_id || '-'}</p>
-            )}
-          </div>
+          
+          {/* 关联采购：仅付款时显示 */}
+          {transaction.type === 'payment' && (
+            <div>
+              <p className="text-sm text-gray-500">关联采购</p>
+              {purchase ? (
+                <Link to={`/purchases/${purchase.id}`} className="text-blue-600 hover:underline">
+                  {purchase.purchase_no}
+                </Link>
+              ) : (
+                <p className="font-medium">{transaction.purchase_id || '-'}</p>
+              )}
+            </div>
+          )}
         </div>
         
         {transaction.remark && (

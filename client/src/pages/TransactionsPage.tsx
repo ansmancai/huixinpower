@@ -115,9 +115,10 @@ export default function TransactionsPage() {
       
       if (keyword) {
         baseQuery = baseQuery.or(
-    `remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%,` +
-    `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%`
-    );
+          `remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%,` +
+          `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%,` +
+          `counterparty_name.ilike.%${keyword}%`
+        );
       }
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
@@ -168,6 +169,15 @@ export default function TransactionsPage() {
     return `/transactions/${id}${queryString ? `?${queryString}` : ''}`;
   };
 
+  // 获取对方名称显示值
+  const getCounterpartyName = (t: any) => {
+    if (t.type === 'payment') {
+      return t.suppliers?.name || '-';
+    } else {
+      return t.counterparty_name || '-';
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -188,7 +198,7 @@ export default function TransactionsPage() {
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
         <input
           type="text"
-          placeholder="搜索备注、编号、项目、供应商..."
+          placeholder="搜索备注、编号、项目、供应商、付款方..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
@@ -236,7 +246,7 @@ export default function TransactionsPage() {
                   <th className="px-4 py-3 text-right">金额</th>
                   <th className="px-4 py-3 text-left">支付方式</th>
                   <th className="px-4 py-3 text-left">项目</th>
-                  <th className="px-4 py-3 text-left">供应商</th>
+                  <th className="px-4 py-3 text-left">对方名称</th>
                   <th className="px-4 py-3 text-center">操作</th>
                 </tr>
               </thead>
@@ -263,7 +273,7 @@ export default function TransactionsPage() {
                       {paymentMethodMap[t.payment_method] || t.payment_method}
                     </td>
                     <td className="px-4 py-3 text-sm">{t.projects?.name || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{t.suppliers?.name || '-'}</td>
+                    <td className="px-4 py-3 text-sm">{getCounterpartyName(t)}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex justify-center gap-2">
                         <Link to={getDetailUrl(t.id)} className="text-blue-600 text-sm">查看</Link>
