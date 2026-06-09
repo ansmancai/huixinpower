@@ -20,6 +20,20 @@ export default function TransactionsPage() {
   const [supplierId, setSupplierId] = useState('all');
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  
+  // 日期范围筛选
+  const getDefaultDateFrom = () => {
+    const today = new Date();
+    const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    return firstDayOfLastMonth.toISOString().split('T')[0];
+  };
+  const getDefaultDateTo = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+  const [dateFrom, setDateFrom] = useState(getDefaultDateFrom());
+  const [dateTo, setDateTo] = useState(getDefaultDateTo());
+  
   const pageSize = 20;
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -36,6 +50,19 @@ export default function TransactionsPage() {
     other: '其他',
   };
 
+  // 重置所有筛选条件
+  const resetFilters = () => {
+    setPage(1);
+    setKeyword('');
+    setType('all');
+    setProjectId('all');
+    setSupplierId('all');
+    setDateFrom(getDefaultDateFrom());
+    setDateTo(getDefaultDateTo());
+    setSelectedProjectName('');
+    setSelectedSupplierName('');
+  };
+
   // 从 URL 读取参数并恢复状态
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -44,12 +71,16 @@ export default function TransactionsPage() {
     const typeParam = params.get('type');
     const projectIdParam = params.get('projectId');
     const supplierIdParam = params.get('supplierId');
+    const dateFromParam = params.get('dateFrom');
+    const dateToParam = params.get('dateTo');
     
     if (pageParam) setPage(parseInt(pageParam));
     if (keywordParam) setKeyword(keywordParam);
     if (typeParam && typeParam !== 'all') setType(typeParam);
     if (projectIdParam && projectIdParam !== 'all') setProjectId(projectIdParam);
     if (supplierIdParam && supplierIdParam !== 'all') setSupplierId(supplierIdParam);
+    if (dateFromParam) setDateFrom(dateFromParam);
+    if (dateToParam) setDateTo(dateToParam);
   }, [location.search]);
 
   // 搜索项目
@@ -113,16 +144,37 @@ export default function TransactionsPage() {
     try {
       let baseQuery = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
+      // 关键字搜索（只搜索 transactions 表自身字段）
       if (keyword) {
-        baseQuery = baseQuery.or(
-          `remark.ilike.%${keyword}%,receipt_no.ilike.%${keyword}%,` +
-          `projects.name.ilike.%${keyword}%,suppliers.name.ilike.%${keyword}%,` +
-          `counterparty_name.ilike.%${keyword}%`
-        );
+        // 搜索项目名称匹配的项目ID
+        const { data: matchedProjects } = await supabase
+          .from('projects')
+          .select('id')
+          .ilike('name', `%${keyword}%`);
+        const projectIds = matchedProjects?.map(p => p.id) || [];
+        
+        // 搜索供应商名称匹配的供应商ID
+        const { data: matchedSuppliers } = await supabase
+          .from('suppliers')
+          .select('id')
+          .ilike('name', `%${keyword}%`);
+        const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+        
+        // 构建 OR 条件
+        const conditions = [`remark.ilike.%${keyword}%`, `receipt_no.ilike.%${keyword}%`, `counterparty_name.ilike.%${keyword}%`];
+        if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
+        if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        
+        baseQuery = baseQuery.or(conditions.join(','));
       }
+      
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
       if (supplierId !== 'all') baseQuery = baseQuery.eq('supplier_id', supplierId);
+      
+      // 日期范围筛选
+      if (dateFrom) baseQuery = baseQuery.gte('date', dateFrom);
+      if (dateTo) baseQuery = baseQuery.lte('date', dateTo);
       
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -139,7 +191,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     loadTransactions();
-  }, [page, type, projectId, supplierId, keyword]);
+  }, [page, type, projectId, supplierId, keyword, dateFrom, dateTo]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除吗？')) return;
@@ -165,6 +217,8 @@ export default function TransactionsPage() {
     if (type !== 'all') params.set('type', type);
     if (projectId !== 'all') params.set('projectId', projectId);
     if (supplierId !== 'all') params.set('supplierId', supplierId);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
     const queryString = params.toString();
     return `/transactions/${id}${queryString ? `?${queryString}` : ''}`;
   };
@@ -195,41 +249,75 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
-        <input
-          type="text"
-          placeholder="搜索备注、编号、项目、供应商、付款方..."
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
-        />
-        <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部类型</option>
-          <option value="payment">付款</option>
-          <option value="receipt">收款</option>
-        </select>
+      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm text-gray-500 mb-1">搜索</label>
+          <input
+            type="text"
+            placeholder="搜索备注、编号、付款方..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
         
-        {/* 项目下拉框 - 带搜索功能 */}
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">类型</label>
+          <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg w-32">
+            <option value="all">全部</option>
+            <option value="payment">付款</option>
+            <option value="receipt">收款</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">开始日期</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-2 border rounded-lg w-40"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">结束日期</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-2 border rounded-lg w-40"
+          />
+        </div>
+        
         <div className="w-64">
+          <label className="block text-sm text-gray-500 mb-1">项目</label>
           <SearchSelect
             value={projectId}
             onChange={(val) => setProjectId(val || 'all')}
             onSearch={searchProjects}
-            placeholder="选择项目"
+            placeholder="全部项目"
             displayName={selectedProjectName}
           />
         </div>
         
-        {/* 供应商下拉框 - 带搜索功能 */}
         <div className="w-64">
+          <label className="block text-sm text-gray-500 mb-1">供应商</label>
           <SearchSelect
             value={supplierId}
             onChange={(val) => setSupplierId(val || 'all')} 
             onSearch={searchSuppliers}
-            placeholder="选择供应商"
+            placeholder="全部供应商"
             displayName={selectedSupplierName}
           />
         </div>
+        
+        <button
+          onClick={resetFilters}
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300"
+        >
+          重置筛选
+        </button>
       </div>
 
       {loading ? (
@@ -257,7 +345,7 @@ export default function TransactionsPage() {
                       <Link to={getDetailUrl(t.id)} className="text-blue-600 hover:underline">
                         {t.receipt_no || t.id.slice(0, 8)}
                       </Link>
-                     </td>
+                    </td>
                     <td className="px-4 py-3 text-sm">{new Date(t.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={t.type === 'payment' ? 'text-red-600' : 'text-green-600'}>
