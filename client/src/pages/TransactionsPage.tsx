@@ -39,7 +39,6 @@ export default function TransactionsPage() {
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
   const canExport = user?.role === 'admin' || user?.role === 'finance';
 
-  // 支付方式映射表
   const paymentMethodMap: Record<string, string> = {
     bank: '银行转账',
     cash: '现金',
@@ -50,7 +49,6 @@ export default function TransactionsPage() {
     other: '其他',
   };
 
-  // 重置所有筛选条件
   const resetFilters = () => {
     setPage(1);
     setKeyword('');
@@ -63,7 +61,7 @@ export default function TransactionsPage() {
     setSelectedSupplierName('');
   };
 
-  // 从 URL 读取参数并恢复状态
+  // 从 URL 读取参数并恢复状态（仅首次加载时执行）
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const pageParam = params.get('page');
@@ -74,16 +72,19 @@ export default function TransactionsPage() {
     const dateFromParam = params.get('dateFrom');
     const dateToParam = params.get('dateTo');
     
-    if (pageParam) setPage(parseInt(pageParam));
-    if (keywordParam) setKeyword(keywordParam);
-    if (typeParam && typeParam !== 'all') setType(typeParam);
-    if (projectIdParam && projectIdParam !== 'all') setProjectId(projectIdParam);
-    if (supplierIdParam && supplierIdParam !== 'all') setSupplierId(supplierIdParam);
-    if (dateFromParam) setDateFrom(dateFromParam);
-    if (dateToParam) setDateTo(dateToParam);
-  }, [location.search]);
+    let hasChange = false;
+    if (pageParam && pageParam !== '1') { setPage(parseInt(pageParam)); hasChange = true; }
+    if (keywordParam) { setKeyword(keywordParam); hasChange = true; }
+    if (typeParam && typeParam !== 'all') { setType(typeParam); hasChange = true; }
+    if (projectIdParam && projectIdParam !== 'all') { setProjectId(projectIdParam); hasChange = true; }
+    if (supplierIdParam && supplierIdParam !== 'all') { setSupplierId(supplierIdParam); hasChange = true; }
+    if (dateFromParam) { setDateFrom(dateFromParam); hasChange = true; }
+    if (dateToParam) { setDateTo(dateToParam); hasChange = true; }
+    
+    // 如果有任何参数变化，且不是用户手动操作触发的（通过标记判断），不自动加载
+    // 因为下面的 loadTransactions 会在依赖变化时自动执行
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
-  // 搜索项目
   const searchProjects = async (searchKeyword: string) => {
     if (!searchKeyword) return [];
     const { data } = await supabase
@@ -94,7 +95,6 @@ export default function TransactionsPage() {
     return data || [];
   };
 
-  // 搜索供应商
   const searchSuppliers = async (searchKeyword: string) => {
     if (!searchKeyword) return [];
     const { data } = await supabase
@@ -144,23 +144,19 @@ export default function TransactionsPage() {
     try {
       let baseQuery = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
-      // 关键字搜索（只搜索 transactions 表自身字段）
       if (keyword) {
-        // 搜索项目名称匹配的项目ID
         const { data: matchedProjects } = await supabase
           .from('projects')
           .select('id')
           .ilike('name', `%${keyword}%`);
         const projectIds = matchedProjects?.map(p => p.id) || [];
         
-        // 搜索供应商名称匹配的供应商ID
         const { data: matchedSuppliers } = await supabase
           .from('suppliers')
           .select('id')
           .ilike('name', `%${keyword}%`);
         const supplierIds = matchedSuppliers?.map(s => s.id) || [];
         
-        // 构建 OR 条件
         const conditions = [`remark.ilike.%${keyword}%`, `receipt_no.ilike.%${keyword}%`, `counterparty_name.ilike.%${keyword}%`];
         if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
         if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
@@ -172,7 +168,6 @@ export default function TransactionsPage() {
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
       if (supplierId !== 'all') baseQuery = baseQuery.eq('supplier_id', supplierId);
       
-      // 日期范围筛选
       if (dateFrom) baseQuery = baseQuery.gte('date', dateFrom);
       if (dateTo) baseQuery = baseQuery.lte('date', dateTo);
       
@@ -209,7 +204,6 @@ export default function TransactionsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // 构建带参数的详情页链接
   const getDetailUrl = (id: string) => {
     const params = new URLSearchParams();
     if (page !== 1) params.set('page', page.toString());
@@ -223,7 +217,6 @@ export default function TransactionsPage() {
     return `/transactions/${id}${queryString ? `?${queryString}` : ''}`;
   };
 
-  // 获取对方名称显示值
   const getCounterpartyName = (t: any) => {
     if (t.type === 'payment') {
       return t.suppliers?.name || '-';
