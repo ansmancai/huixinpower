@@ -19,6 +19,16 @@ export default function InvoicesPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
+  
+  // 日期筛选
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  
+  // 合计金额
+  const [totalAmountSum, setTotalAmountSum] = useState(0);
+  const [totalTaxSum, setTotalTaxSum] = useState(0);
+  const [totalTotalSum, setTotalTotalSum] = useState(0);
+  
   const pageSize = 20;
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -37,17 +47,50 @@ export default function InvoicesPage() {
     try {
       let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name), file_path', { count: 'exact' });
       
+      // 关键字搜索（支持发票号码、对方名称、项目名称）
       if (keyword) {
-        // 搜索发票号码和对方名称
-        baseQuery = baseQuery.or(`invoice_no.ilike.%${keyword}%,supplier_name.ilike.%${keyword}%`);
+        // 搜索项目名称匹配的项目ID
+        const { data: matchedProjects } = await supabase
+          .from('projects')
+          .select('id')
+          .ilike('name', `%${keyword}%`);
+        const projectIds = matchedProjects?.map(p => p.id) || [];
+        
+        // 构建 OR 条件
+        const conditions = [`invoice_no.ilike.%${keyword}%`, `supplier_name.ilike.%${keyword}%`];
+        if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
+        
+        baseQuery = baseQuery.or(conditions.join(','));
       }
       
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
       if (status !== 'all') baseQuery = baseQuery.eq('status', status);
       
+      // 日期筛选
+      if (dateFrom) baseQuery = baseQuery.gte('invoice_date', dateFrom);
+      if (dateTo) baseQuery = baseQuery.lte('invoice_date', dateTo);
+      
+      // 先获取全部符合条件的数据用于计算合计
+      const { data: allData } = await baseQuery;
+      
+      // 计算合计
+      let sumAmount = 0;
+      let sumTax = 0;
+      let sumTotal = 0;
+      allData?.forEach(item => {
+        sumAmount += parseFloat(item.amount) || 0;
+        sumTax += parseFloat(item.tax_amount) || 0;
+        sumTotal += parseFloat(item.total_amount) || 0;
+      });
+      setTotalAmountSum(sumAmount);
+      setTotalTaxSum(sumTax);
+      setTotalTotalSum(sumTotal);
+      
+      // 获取总数
       const { count: totalCount } = await baseQuery;
       
+      // 分页数据
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       const { data: pageData } = await baseQuery.range(from, to).order('invoice_date', { ascending: false });
@@ -64,7 +107,7 @@ export default function InvoicesPage() {
   // 加载数据
   useEffect(() => {
     loadInvoices();
-  }, [page, type, projectId, status, keyword]);
+  }, [page, type, projectId, status, keyword, dateFrom, dateTo]);
 
   // 删除函数
   const handleDelete = async (id: string, no: string) => {
@@ -77,24 +120,21 @@ export default function InvoicesPage() {
     }
   };
 
+  // 重置筛选
+  const resetFilters = () => {
+    setKeyword('');
+    setType('all');
+    setProjectId('all');
+    setStatus('all');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  };
+
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
   const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款', cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
   const totalPages = Math.ceil(total / pageSize);
-
-  const importColumns = [
-    { key: 'type', label: '发票类型', required: true },
-    { key: 'invoice_no', label: '发票号码', required: true },
-    { key: 'amount', label: '金额', required: true },
-    { key: 'tax_amount', label: '税额', required: false },
-    { key: 'total_amount', label: '总金额', required: false },
-    { key: 'invoice_date', label: '开票日期', required: true },
-    { key: 'supplier_name', label: '对方名称', required: false },
-    { key: 'project_name', label: '所属项目', required: false },
-    { key: 'purchase_no', label: '关联采购', required: false },
-    { key: 'status', label: '状态', required: false },
-    { key: 'remark', label: '备注', required: false },
-  ];
 
   return (
     <div>
@@ -111,30 +151,72 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
-        <input 
-          type="text" 
-          placeholder="搜索发票号码、对方名称..." 
-          value={keyword} 
-          onChange={(e) => setKeyword(e.target.value)} 
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg" 
-        />
-        <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部类型</option>
-          <option value="input">进项</option>
-          <option value="output">销项</option>
-        </select>
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部项目</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="px-3 py-2 border rounded-lg">
-          <option value="all">全部状态</option>
-          <option value="unpaid">未付款</option>
-          <option value="partial">部分付款</option> 
-          <option value="paid">已付款</option>
-          <option value="cancelled">作废</option>
-        </select>
+      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm text-gray-500 mb-1">搜索</label>
+          <input 
+            type="text" 
+            placeholder="搜索发票号码、对方名称、项目名称..." 
+            value={keyword} 
+            onChange={(e) => setKeyword(e.target.value)} 
+            className="w-full px-3 py-2 border rounded-lg" 
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">类型</label>
+          <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 border rounded-lg w-32">
+            <option value="all">全部</option>
+            <option value="input">进项</option>
+            <option value="output">销项</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">开始日期</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-2 border rounded-lg w-40"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">结束日期</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-2 border rounded-lg w-40"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">项目</label>
+          <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="px-3 py-2 border rounded-lg w-48">
+            <option value="all">全部项目</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">状态</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="px-3 py-2 border rounded-lg w-32">
+            <option value="all">全部</option>
+            <option value="unpaid">未付款</option>
+            <option value="partial">部分付款</option> 
+            <option value="paid">已付款</option>
+            <option value="cancelled">作废</option>
+          </select>
+        </div>
+        
+        <button
+          onClick={resetFilters}
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300"
+        >
+          重置筛选
+        </button>
       </div>
 
       {loading ? <div className="text-center py-12">加载中...</div> : (
@@ -151,7 +233,7 @@ export default function InvoicesPage() {
                   <th className="px-4 py-3 text-left">开票日期</th>
                   <th className="px-4 py-3 text-left">对方名称</th>
                   <th className="px-4 py-3 text-left">所属项目</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-500">附件</th>
+                  <th className="px-4 py-3 text-center">附件</th>
                   <th className="px-4 py-3 text-center">状态</th>
                   <th className="px-4 py-3 text-center">操作</th>
                 </tr>
@@ -198,6 +280,17 @@ export default function InvoicesPage() {
                   </tr>
                 ))}
               </tbody>
+              {total > 0 && (
+                <tfoot className="bg-gray-50 border-t">
+                  <tr>
+                    <td colSpan={2} className="px-4 py-3 text-right font-medium">合计：</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalAmountSum)}</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalTaxSum)}</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalTotalSum)}</td>
+                    <td colSpan={6}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
           {totalPages > 1 && (
