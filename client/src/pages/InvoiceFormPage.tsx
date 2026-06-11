@@ -457,14 +457,13 @@ export default function InvoiceFormPage() {
     return data || [];
   };
 
-  // ==================== 关联采购筛选：同时按项目和供应商 ====================
-  const searchPurchasesByProjectAndSupplier = async (projectId: string, supplierId: string, keyword: string) => {
-    if (!projectId || !supplierId) return [];
+  // ==================== 关联采购筛选：只根据项目筛选 ====================
+  const searchPurchasesByProject = async (projectId: string, keyword: string) => {
+    if (!projectId) return [];
     let query = supabase
       .from('purchases')
       .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
-      .eq('project_id', projectId)
-      .eq('supplier_id', supplierId);
+      .eq('project_id', projectId);
     if (keyword) query = query.ilike('purchase_no', `%${keyword}%`);
     const { data } = await query.limit(20);
     return data?.map(p => ({
@@ -477,8 +476,8 @@ export default function InvoiceFormPage() {
   };
 
   const handlePurchaseSearch = async (keyword: string) => {
-    if (!formData.project_id || !formData.supplier_id) return [];
-    return searchPurchasesByProjectAndSupplier(formData.project_id, formData.supplier_id, keyword);
+    if (!formData.project_id) return [];
+    return searchPurchasesByProject(formData.project_id, keyword);
   };
   // ==================== 结束 ====================
 
@@ -669,7 +668,7 @@ export default function InvoiceFormPage() {
                 onSearch={handlePurchaseSearch}
                 placeholder="选择采购单"
                 initialOptions={purchaseOptions}
-                disabled={!formData.project_id || !formData.supplier_id}
+                disabled={!formData.project_id}
               />
               {formData.project_id && !formData.purchase_id && (
                 <p className="text-xs text-gray-500 mt-1">选择采购单可自动填充供应商</p>
