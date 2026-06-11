@@ -35,6 +35,7 @@ export default function InvoiceFormPage() {
 
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const [selectedPurchaseName, setSelectedPurchaseName] = useState('');
   const [projectOptions, setProjectOptions] = useState<any[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
@@ -64,6 +65,7 @@ export default function InvoiceFormPage() {
       .eq('id', purchaseId)
       .single();
     if (data) {
+      const purchaseName = `${data.purchase_no} - ${data.content} (¥${data.amount})`;
       setFormData(prev => ({
         ...prev,
         purchase_id: data.id,
@@ -71,6 +73,14 @@ export default function InvoiceFormPage() {
         supplier_id: data.supplier_id || '',
         amount: data.amount || '',
       }));
+      setSelectedPurchaseName(purchaseName);
+      setPurchaseOptions([{
+        id: data.id,
+        name: purchaseName,
+        supplier_name: data.suppliers?.name || '',
+        supplier_id: data.supplier_id || '',
+        amount: data.amount,
+      }]);
     }
   };
 
@@ -113,6 +123,12 @@ export default function InvoiceFormPage() {
     
     const projectList = Array.from(uniqueProjects.values());
     setProjectOptions(projectList);
+    
+    // 如果只有一个项目，自动选中
+    if (projectList.length === 1) {
+      setSelectedProjectName(projectList[0].name);
+      setFormData(prev => ({ ...prev, project_id: projectList[0].id }));
+    }
     return projectList;
   };
 
@@ -135,6 +151,12 @@ export default function InvoiceFormPage() {
       name: p.name,
     }));
     setProjectOptions(projectList);
+    
+    // 如果只有一个项目，自动选中
+    if (projectList.length === 1) {
+      setSelectedProjectName(projectList[0].name);
+      setFormData(prev => ({ ...prev, project_id: projectList[0].id }));
+    }
     return projectList;
   };
 
@@ -152,6 +174,7 @@ export default function InvoiceFormPage() {
       loadProjectsByClientName(counterpartyName);
     }
     setFormData(prev => ({ ...prev, project_id: '', purchase_id: '' }));
+    setSelectedPurchaseName('');
   }, [formData.supplier_name, formData.type]);
 
   useEffect(() => {
@@ -215,13 +238,15 @@ export default function InvoiceFormPage() {
                 .eq('id', data.purchase_id)
                 .single();
               if (purchase) {
+                const purchaseName = `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`;
                 setPurchaseOptions([{
                   id: purchase.id,
-                  name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+                  name: purchaseName,
                   supplier_name: purchase.suppliers?.name || '',
                   supplier_id: purchase.supplier_id || '',
                   amount: purchase.amount,
                 }]);
+                setSelectedPurchaseName(purchaseName);
               }
             }
           }
@@ -484,6 +509,7 @@ export default function InvoiceFormPage() {
   const handleProjectChange = async (projectId: string) => {
     setFormData(prev => ({ ...prev, project_id: projectId, purchase_id: '', supplier_id: '' }));
     setSelectedProjectName('');
+    setSelectedPurchaseName('');
     if (projectId) {
       const { data: project } = await supabase
         .from('projects')
@@ -575,6 +601,7 @@ export default function InvoiceFormPage() {
                 });
                 setProjectOptions([]);
                 setSelectedProjectName('');
+                setSelectedPurchaseName('');
               }}
               className="w-full px-3 py-2 border rounded-lg"
             >
@@ -664,9 +691,11 @@ export default function InvoiceFormPage() {
                     supplier_name: option?.supplier_name || '',
                     supplier_id: option?.supplier_id || '',
                   });
+                  setSelectedPurchaseName(option?.name || '');
                 }}
                 onSearch={handlePurchaseSearch}
                 placeholder="选择采购单"
+                displayName={selectedPurchaseName}
                 initialOptions={purchaseOptions}
                 disabled={!formData.project_id}
               />
