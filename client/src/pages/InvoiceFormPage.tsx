@@ -42,7 +42,7 @@ export default function InvoiceFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
-  // 自动计算总金额（保留原有逻辑，作为备选）
+  // 自动计算总金额
   useEffect(() => {
     const amount = parseFloat(formData.amount) || 0;
     const tax = parseFloat(formData.tax_amount) || 0;
@@ -73,6 +73,95 @@ export default function InvoiceFormPage() {
       }));
     }
   };
+
+  // ==================== 根据对方名称筛选项目 ====================
+  // 进项发票：通过供应商名称 -> 供应商ID -> 采购记录 -> 项目
+  const loadProjectsBySupplierName = async (supplierName: string) => {
+    if (!supplierName) return [];
+    
+    // 先匹配供应商
+    const { data: matchedSuppliers } = await supabase
+      .from('suppliers')
+      .select('id, name')
+      .ilike('name', `%${supplierName}%`)
+      .limit(1);
+    
+    if (!matchedSuppliers || matchedSuppliers.length === 0) {
+      setProjectOptions([]);
+      return [];
+    }
+    
+    const supplierId = matchedSuppliers[0].id;
+    setSelectedSupplierName(matchedSuppliers[0].name);
+    setFormData(prev => ({ ...prev, supplier_id: supplierId }));
+    
+    // 通过采购记录查询关联的项目
+    const { data: purchases } = await supabase
+      .from('purchases')
+      .select('project_id, projects(id, name)')
+      .eq('supplier_id', supplierId)
+      .not('project_id', 'is', null);
+    
+    if (!purchases || purchases.length === 0) {
+      setProjectOptions([]);
+      return [];
+    }
+    
+    const uniqueProjects = new Map();
+    purchases.forEach(p => {
+      if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
+        uniqueProjects.set(p.project_id, { id: p.project_id, name: p.projects.name });
+      }
+    });
+    
+    const projectList = Array.from(uniqueProjects.values());
+    setProjectOptions(projectList);
+    return projectList;
+  };
+
+  // 销项发票：直接匹配项目的 client 字段
+  const loadProjectsByClientName = async (clientName: string) => {
+    if (!clientName) return [];
+    
+    const { data: matchedProjects } = await supabase
+      .from('projects')
+      .select('id, name, client')
+      .ilike('client', `%${clientName}%`)
+      .limit(50);
+    
+    if (!matchedProjects || matchedProjects.length === 0) {
+      setProjectOptions([]);
+      return [];
+    }
+    
+    const projectList = matchedProjects.map(p => ({
+      id: p.id,
+      name: p.name,
+    }));
+    setProjectOptions(projectList);
+    return projectList;
+  };
+
+  // 监听对方名称变化（supplier_name 字段）
+  useEffect(() => {
+    const counterpartyName = formData.supplier_name;
+    if (!counterpartyName) {
+      setProjectOptions([]);
+      setSelectedProjectName('');
+      return;
+    }
+    
+    if (formData.type === 'input') {
+      // 进项发票：根据供应商名称筛选项目
+      loadProjectsBySupplierName(counterpartyName);
+    } else {
+      // 销项发票：根据甲方名称筛选项目
+      loadProjectsByClientName(counterpartyName);
+    }
+    // 清空已选的项目和采购单
+    setFormData(prev => ({ ...prev, project_id: '', purchase_id: '' }));
+  }, [formData.supplier_name, formData.type]);
+  // ==================== 结束 ====================
 
   useEffect(() => {
     if (isEdit && canEdit) {
@@ -108,7 +197,7 @@ export default function InvoiceFormPage() {
                 .eq('id', data.project_id)
                 .single();
               if (project) {
-                setProjectOptions([{ id: project.id, name: project.name }]);
+                setProjectOptions([{ id: data.project_id, name: project.name }]);
                 setSelectedProjectName(project.name);
                 if (data.type === 'output' && project.client) {
                   setFormData(prev => ({ ...prev, supplier_name: project.client }));
@@ -283,41 +372,11 @@ export default function InvoiceFormPage() {
         updates.supplier_id = '';
       }
       
-      // ========== 新增：进项发票自动匹配供应商 ==========
-      let matchedSupplierId = '';
-      let matchedSupplierName = '';
-      
-      if (detectedType === 'input' && words.SellerName) {
-        // 根据销售方名称匹配供应商
-        const { data: matchedSuppliers } = await supabase
-          .from('suppliers')
-          .select('id, name')
-          .ilike('name', `%${words.SellerName}%`)
-          .limit(1);
-        
-        if (matchedSuppliers && matchedSuppliers.length > 0) {
-          matchedSupplierId = matchedSuppliers[0].id;
-          matchedSupplierName = matchedSuppliers[0].name;
-          updates.supplier_id = matchedSupplierId;
-          // 如果对方名称还没填，用匹配到的供应商名称
-          if (!updates.supplier_name) {
-            updates.supplier_name = matchedSupplierName;
-          }
-        }
-      }
-      // ========== 新增结束 ==========
-      
       setFormData(prev => ({
         ...prev,
         ...updates,
         type: detectedType
       }));
-      
-      // 更新供应商选项，让 SearchSelect 能正确显示选中的供应商
-      if (matchedSupplierId) {
-        setSupplierOptions([{ id: matchedSupplierId, name: matchedSupplierName }]);
-        setSelectedSupplierName(matchedSupplierName);
-      }
       
       alert(`✅ 识别成功！\n发票类型：${detectedType === 'input' ? '进项' : '销项'}\n已自动填充表单，请核对并补充信息。`);
       
@@ -387,7 +446,14 @@ export default function InvoiceFormPage() {
     }
   };
 
+  // 搜索项目：优先使用筛选后的项目列表
   const searchProjects = async (keyword: string) => {
+    if (projectOptions.length > 0) {
+      const filtered = projectOptions.filter(p => 
+        p.name.toLowerCase().includes(keyword.toLowerCase())
+      );
+      return filtered;
+    }
     const { data } = await supabase
       .from('projects')
       .select('id, name, code, client')
@@ -439,6 +505,7 @@ export default function InvoiceFormPage() {
       if (project) {
         setSelectedProjectName(project.name);
         setProjectOptions([{ id: project.id, name: project.name }]);
+        // 销项发票：选择项目后自动填充对方名称为甲方
         if (formData.type === 'output' && project.client) {
           setFormData(prev => ({ ...prev, supplier_name: project.client }));
         }
@@ -519,6 +586,8 @@ export default function InvoiceFormPage() {
                   supplier_id: '',
                   supplier_name: newType === 'input' ? '' : formData.supplier_name,
                 });
+                setProjectOptions([]);
+                setSelectedProjectName('');
               }}
               className="w-full px-3 py-2 border rounded-lg"
             >
@@ -581,7 +650,7 @@ export default function InvoiceFormPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">所属项目 {formData.type === 'output' && '*'}</label>
+            <label className="block text-sm font-medium mb-1">所属项目</label>
             <SearchSelect
               value={formData.project_id}
               onChange={handleProjectChange}
@@ -591,6 +660,9 @@ export default function InvoiceFormPage() {
               initialOptions={projectOptions}
             />
             {selectedProjectName && <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>}
+            {formData.supplier_name && projectOptions.length === 0 && (
+              <p className="text-xs text-orange-500 mt-1">未找到匹配的项目，请手动选择</p>
+            )}
           </div>
 
           {formData.type === 'input' && (
@@ -604,7 +676,6 @@ export default function InvoiceFormPage() {
                     purchase_id: val,
                     supplier_name: option?.supplier_name || '',
                     supplier_id: option?.supplier_id || '',
-                    // 注意：不覆盖金额，保持 OCR 识别的值
                   });
                 }}
                 onSearch={handlePurchaseSearch}
