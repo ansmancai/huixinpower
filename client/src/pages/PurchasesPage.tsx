@@ -161,20 +161,22 @@ export default function PurchasesPage() {
   const totalPages = Math.ceil(filteredPurchases.length / pageSize);
   const currentPageData = filteredPurchases.slice((page - 1) * pageSize, page * pageSize);
 
-  const getPaymentStatus = (p: any) => {
+  // 获取付款状态文本（保留用于筛选，但表格中不再显示）
+  const getPaymentStatusText = (p: any) => {
     const paid = p.paidAmount || 0;
     const amount = parseFloat(p.amount);
-    if (paid >= amount) return { text: '已付清', color: 'bg-green-100 text-green-800' };
-    if (paid > 0) return { text: '部分付', color: 'bg-yellow-100 text-yellow-800' };
-    return { text: '未付款', color: 'bg-red-100 text-red-800' };
+    if (paid >= amount) return '已付清';
+    if (paid > 0) return '部分付';
+    return '未付款';
   };
 
-  const getInvoiceStatus = (p: any) => {
+  // 获取收票状态文本（保留用于筛选，但表格中不再显示）
+  const getInvoiceStatusText = (p: any) => {
     const invoiced = p.invoicedAmount || 0;
     const amount = parseFloat(p.amount);
-    if (invoiced >= amount) return { text: '已收票', color: 'bg-green-100 text-green-800' };
-    if (invoiced > 0) return { text: '部分收票', color: 'bg-yellow-100 text-yellow-800' };
-    return { text: '未收票', color: 'bg-red-100 text-red-800' };
+    if (invoiced >= amount) return '已收票';
+    if (invoiced > 0) return '部分收票';
+    return '未收票';
   };
 
   return (
@@ -209,26 +211,48 @@ export default function PurchasesPage() {
       {loading ? <div className="text-center py-12">加载中...</div> : (
         <>
           <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="w-full min-w-[1100px]"><thead className="bg-gray-50"> 
-              <th className="px-4 py-3 text-left">采购日期</th><th className="px-4 py-3 text-left">采购编号</th><th className="px-4 py-3 text-left">采购内容</th>
-              <th className="px-4 py-3 text-left">所属项目</th><th className="px-4 py-3 text-left">供应商</th><th className="px-4 py-3 text-right">金额</th>
-              <th className="px-4 py-3 text-center">物流</th><th className="px-4 py-3 text-center">付款</th><th className="px-4 py-3 text-center">收票</th><th className="px-4 py-3 text-center">操作</th>
-            </thead>
+            <table className="w-full min-w-[1300px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left">采购日期</th>
+                  <th className="px-4 py-3 text-left">采购编号</th>
+                  <th className="px-4 py-3 text-left">采购内容</th>
+                  <th className="px-4 py-3 text-left">所属项目</th>
+                  <th className="px-4 py-3 text-left">供应商</th>
+                  <th className="px-4 py-3 text-right">金额</th>
+                  <th className="px-4 py-3 text-center">物流</th>
+                  <th className="px-4 py-3 text-right">欠款</th>
+                  <th className="px-4 py-3 text-right">欠票</th>
+                  <th className="px-4 py-3 text-center">操作</th>
+                </tr>
+              </thead>
               <tbody className="divide-y">
                 {currentPageData.map(p => {
-                  const payment = getPaymentStatus(p);
-                  const invoice = getInvoiceStatus(p);
-                  return (<tr key={p.id} className="hover:bg-gray-50"><td className="px-4 py-3 text-sm">{new Date(p.purchase_date).toLocaleDateString()} </td>
-                    <td className="px-4 py-3"><Link to={`/purchases/${p.id}`} className="text-blue-600 hover:underline">{p.purchase_no}</Link></td>
-                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.content}</td>
-                    <td className="px-4 py-3 text-sm">{p.projects?.name || p.project_id || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{p.suppliers?.name || p.supplier_id || '-'}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(p.amount))}</td>
-                    <td className="px-4 py-3 text-center"><span className="px-2 py-1 rounded-full text-xs bg-blue-100">{statusMap[p.logistics_status]}</span></td>
-                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs ${payment.color}`}>{payment.text}</span></td>
-                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs ${invoice.color}`}>{invoice.text}</span></td>
-                    <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><Link to={`/purchases/${p.id}`} className="text-blue-600 text-sm">查看</Link>{canEdit && <Link to={`/purchases/${p.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}{user?.role === 'admin' && <button onClick={() => handleDelete(p.id, p.content)} className="text-red-600 text-sm">删除</button>}</div></td>
-                   </tr>);
+                  const amount = parseFloat(p.amount);
+                  const paidAmount = p.paidAmount || 0;
+                  const invoicedAmount = p.invoicedAmount || 0;
+                  const unpaidAmount = amount - paidAmount;
+                  const uninvoicedAmount = amount - invoicedAmount;
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm">{new Date(p.purchase_date).toLocaleDateString()} </td>
+                      <td className="px-4 py-3"><Link to={`/purchases/${p.id}`} className="text-blue-600 hover:underline">{p.purchase_no}</Link></td>
+                      <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.content}</td>
+                      <td className="px-4 py-3 text-sm">{p.projects?.name || p.project_id || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{p.suppliers?.name || p.supplier_id || '-'}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatAmount(amount)}</td>
+                      <td className="px-4 py-3 text-center"><span className="px-2 py-1 rounded-full text-xs bg-blue-100">{statusMap[p.logistics_status]}</span></td>
+                      <td className="px-4 py-3 text-right text-red-600">{formatAmount(unpaidAmount)}</td>
+                      <td className="px-4 py-3 text-right text-orange-600">{formatAmount(uninvoicedAmount)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center gap-2">
+                          <Link to={`/purchases/${p.id}`} className="text-blue-600 text-sm">查看</Link>
+                          {canEdit && <Link to={`/purchases/${p.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
+                          {user?.role === 'admin' && <button onClick={() => handleDelete(p.id, p.content)} className="text-red-600 text-sm">删除</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
