@@ -30,7 +30,7 @@ export default function TransactionFormPage() {
     project_id: '',
     supplier_id: '',
     purchase_id: '',
-    counterparty_name: '', // 收款时的付款方名称
+    counterparty_name: '',
     remark: '',
   });
 
@@ -361,6 +361,7 @@ export default function TransactionFormPage() {
     }
   }, [id, isEdit, canEdit, navigate]);
 
+  // ==================== 校验付款金额（修复浮点数精度问题） ====================
   const validatePaymentAmount = async (purchaseId: string, amount: number, excludeCurrentId?: string): Promise<boolean> => {
     const { data: purchase } = await supabase
       .from('purchases')
@@ -382,9 +383,12 @@ export default function TransactionFormPage() {
     
     const { data: payments } = await query;
     const paidTotal = (payments || []).reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
-    const remaining = parseFloat(purchase.amount) - paidTotal;
     
-    if (amount > remaining) {
+    // 🔧 修复：四舍五入到两位小数，避免浮点数精度问题
+    const remaining = Math.round((parseFloat(purchase.amount) - paidTotal) * 100) / 100;
+    const roundedAmount = Math.round(amount * 100) / 100;
+    
+    if (roundedAmount > remaining) {
       alert(`付款金额超过采购剩余未付款（剩余 ¥${remaining.toFixed(2)}）`);
       return false;
     }
