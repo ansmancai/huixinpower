@@ -34,7 +34,6 @@ export default function PurchaseFormPage() {
   const generatePurchaseNo = async (projectId: string, supplierId: string) => {
     if (!projectId || !supplierId) return '';
     
-    // 获取项目编号和供应商编号
     const { data: project } = await supabase
       .from('projects')
       .select('code')
@@ -48,7 +47,6 @@ export default function PurchaseFormPage() {
     
     if (!project?.code || !supplier?.code) return '';
     
-    // 查询该项目下该供应商的最大流水号
     const { data: existing } = await supabase
       .from('purchases')
       .select('purchase_no')
@@ -80,16 +78,33 @@ export default function PurchaseFormPage() {
     updatePurchaseNo();
   }, [formData.project_id, formData.supplier_id, isEdit]);
 
-  // 从 URL 参数获取带入的数据
+  // ==================== 从 URL 参数预填字段 ====================
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
     const supplierId = params.get('supplierId');
+    
     if (projectId) {
       setFormData(prev => ({ ...prev, project_id: projectId }));
+      // 加载项目名称
+      supabase.from('projects').select('name, code').eq('id', projectId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedProjectName(data.name);
+            setProjectOptions([{ id: projectId, name: data.name }]);
+          }
+        });
     }
     if (supplierId) {
       setFormData(prev => ({ ...prev, supplier_id: supplierId }));
+      // 加载供应商名称
+      supabase.from('suppliers').select('name, code').eq('id', supplierId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedSupplierName(data.name);
+            setSupplierOptions([{ id: supplierId, name: data.name }]);
+          }
+        });
     }
   }, [location]);
 
