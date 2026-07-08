@@ -221,17 +221,51 @@ export default function TransactionFormPage() {
     }
   };
 
-  // ==================== 原有逻辑 ====================
+  // ==================== 从 URL 参数预填字段 ====================
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
     const supplierId = params.get('supplierId');
     const purchaseId = params.get('purchaseId');
-    if (projectId) setFormData(prev => ({ ...prev, project_id: projectId }));
-    if (supplierId) setFormData(prev => ({ ...prev, supplier_id: supplierId }));
-    if (purchaseId) setFormData(prev => ({ ...prev, purchase_id: purchaseId }));
+    
+    // 设置 ID
+    if (projectId) {
+      setFormData(prev => ({ ...prev, project_id: projectId }));
+      // 加载项目名称
+      supabase.from('projects').select('name').eq('id', projectId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedProjectName(data.name);
+            setProjectOptions([{ id: projectId, name: data.name }]);
+          }
+        });
+    }
+    if (supplierId) {
+      setFormData(prev => ({ ...prev, supplier_id: supplierId }));
+      // 加载供应商名称
+      supabase.from('suppliers').select('name').eq('id', supplierId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedSupplierName(data.name);
+            setSupplierOptions([{ id: supplierId, name: data.name }]);
+          }
+        });
+    }
+    if (purchaseId) {
+      setFormData(prev => ({ ...prev, purchase_id: purchaseId }));
+      // 加载采购名称
+      supabase.from('purchases').select('purchase_no, content, amount').eq('id', purchaseId).single()
+        .then(({ data }) => {
+          if (data) {
+            const name = `${data.purchase_no} - ${data.content} (¥${data.amount})`;
+            setSelectedPurchaseName(name);
+            setPurchaseOptions([{ id: purchaseId, name }]);
+          }
+        });
+    }
   }, [location]);
 
+  // ==================== 原有逻辑 ====================
   useEffect(() => {
     const loadOptions = async () => {
       const [projRes, supRes] = await Promise.all([
@@ -345,10 +379,12 @@ export default function TransactionFormPage() {
                 .eq('id', data.purchase_id)
                 .single();
               if (purchase) {
+                const name = `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`;
                 setPurchaseOptions([{
                   id: purchase.id,
-                  name: `${purchase.purchase_no} - ${purchase.content} (¥${purchase.amount})`,
+                  name,
                 }]);
+                setSelectedPurchaseName(name);
               }
             }
           }
