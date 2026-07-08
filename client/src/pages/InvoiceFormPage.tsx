@@ -164,6 +164,66 @@ export default function InvoiceFormPage() {
     loadPurchases();
   }, [loadPurchases]);
 
+  // ==================== 从 URL 参数预填字段 ====================
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    const supplierId = params.get('supplierId');
+    const purchaseId = params.get('purchaseId');
+    
+    // 设置 ID
+    if (projectId) {
+      setForm(prev => ({ ...prev, project_id: projectId }));
+      // 加载项目名称
+      supabase.from('projects').select('name, client').eq('id', projectId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedProjectName(data.name);
+            setProjectOptions([{ id: projectId, name: data.name }]);
+            // 如果是销项发票，自动填充甲方名称
+            if (!isInput && data.client) {
+              setForm(prev => ({ ...prev, supplier_name: data.client }));
+            }
+          }
+        });
+    }
+    if (supplierId) {
+      setForm(prev => ({ ...prev, supplier_id: supplierId }));
+      // 加载供应商名称
+      supabase.from('suppliers').select('name').eq('id', supplierId).single()
+        .then(({ data }) => {
+          if (data) {
+            setSelectedSupplierName(data.name);
+            setSupplierOptions([{ id: supplierId, name: data.name }]);
+          }
+        });
+    }
+    if (purchaseId) {
+      setForm(prev => ({ ...prev, purchase_id: purchaseId }));
+      // 加载采购名称
+      supabase.from('purchases').select('purchase_no, content, amount, supplier_id, suppliers(name)').eq('id', purchaseId).single()
+        .then(({ data }) => {
+          if (data) {
+            const name = `${data.purchase_no} - ${data.content} (¥${data.amount})`;
+            setSelectedPurchaseName(name);
+            setPurchaseOptions([{
+              id: purchaseId,
+              name,
+              supplier_name: data.suppliers?.name || '',
+              supplier_id: data.supplier_id || '',
+              amount: data.amount,
+            }]);
+            // 如果供应商还没填，从采购单填充
+            if (!form.supplier_id && data.supplier_id) {
+              setForm(prev => ({ ...prev, supplier_id: data.supplier_id, supplier_name: data.suppliers?.name || '' }));
+              setSelectedSupplierName(data.suppliers?.name || '');
+              setSupplierOptions([{ id: data.supplier_id, name: data.suppliers?.name || '' }]);
+            }
+          }
+        });
+    }
+  }, [location]);
+
   // ==================== 编辑时加载发票数据 ====================
   useEffect(() => {
     if (!isEdit || !canEdit) return;
@@ -203,6 +263,7 @@ export default function InvoiceFormPage() {
             .single();
           if (proj) {
             setSelectedProjectName(proj.name);
+            setProjectOptions([{ id: data.project_id, name: proj.name }]);
             if (data.type === 'output' && proj.client)
               setForm(prev => ({ ...prev, supplier_name: proj.client }));
           }
@@ -223,13 +284,19 @@ export default function InvoiceFormPage() {
         if (data.type === 'input' && data.purchase_id) {
           const { data: pur } = await supabase
             .from('purchases')
-            .select('id, purchase_no, content, amount')
+            .select('id, purchase_no, content, amount, supplier_id, suppliers(name)')
             .eq('id', data.purchase_id)
             .single();
           if (pur) {
             const name = `${pur.purchase_no} - ${pur.content} (¥${pur.amount})`;
             setSelectedPurchaseName(name);
-            setPurchaseOptions([{ id: pur.id, name, supplier_name: '', supplier_id: '', amount: pur.amount }]);
+            setPurchaseOptions([{
+              id: pur.id,
+              name,
+              supplier_name: pur.suppliers?.name || '',
+              supplier_id: pur.supplier_id || '',
+              amount: pur.amount,
+            }]);
           }
         }
       } catch (err) {
