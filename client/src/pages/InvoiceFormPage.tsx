@@ -448,7 +448,7 @@ export default function InvoiceFormPage() {
 
       // ✅ 进项发票：立即执行金额匹配
       if (detectedType === 'input' && counterparty) {
-        const ocrAmount = parseFloat(updates.amount || '0');
+        const ocrAmount = parseFloat(updates.total_amount || '0');
         await matchPurchaseByAmount(counterparty, ocrAmount);
       }
 
