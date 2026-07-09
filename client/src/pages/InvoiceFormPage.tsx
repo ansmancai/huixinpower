@@ -12,15 +12,13 @@ export default function InvoiceFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
-  // 基础状态
   const [loading, setLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState('');
   const [ocrLoading, setOcrLoading] = useState(false);
 
-  // 表单数据
   const [form, setForm] = useState({
-    type: 'input',                 // input / output
+    type: 'input',
     invoice_no: '',
     amount: '',
     tax_amount: '',
@@ -28,25 +26,22 @@ export default function InvoiceFormPage() {
     invoice_date: '',
     project_id: '',
     purchase_id: '',
-    supplier_name: '',             // 对方名称（进项=供应商，销项=甲方）
+    supplier_name: '',
     supplier_id: '',
     status: 'unpaid',
     remark: '',
   });
 
-  // 下拉选项池
-  const [projectOptions, setProjectOptions] = useState<any[]>([]);
-  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
-  const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
-  // 选中项的显示名称
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
   const [selectedPurchaseName, setSelectedPurchaseName] = useState('');
+  const [projectOptions, setProjectOptions] = useState<any[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
+  const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
-  // ==================== 辅助函数 ====================
   const isInput = form.type === 'input';
 
   // 自动计算总金额
@@ -56,7 +51,6 @@ export default function InvoiceFormPage() {
     setForm(prev => ({ ...prev, total_amount: (amount + tax).toFixed(2) }));
   }, [form.amount, form.tax_amount]);
 
-  // 重置所有依赖项（对方名称变化时调用）
   const resetDependentOptions = useCallback(() => {
     setProjectOptions([]);
     setSelectedProjectName('');
@@ -65,73 +59,145 @@ export default function InvoiceFormPage() {
     setForm(prev => ({ ...prev, project_id: '', purchase_id: '' }));
   }, []);
 
-  // ==================== 根据对方名称加载项目列表 ====================
-  const loadProjects = useCallback(async (name: string) => {
+  // ==================== 根据供应商名称加载项目和采购（含金额匹配） ====================
+  const loadProjectsBySupplierName = useCallback(async (supplierName: string, ocrAmount?: number) => {
+    if (!supplierName) {
+      resetDependentOptions();
+      return;
+    }
+
+    // 1. 匹配供应商
+    const { data: suppliers } = await supabase
+      .from('suppliers')
+      .select('id, name')
+      .ilike('name', `%${supplierName}%`)
+      .limit(1);
+
+    if (!suppliers?.length) {
+      resetDependentOptions();
+      return;
+    }
+
+    const supplierId = suppliers[0].id;
+    setSelectedSupplierName(suppliers[0].name);
+    setForm(prev => ({ ...prev, supplier_id: supplierId }));
+
+    // 2. 查询该供应商的所有采购记录
+    const { data: purchases } = await supabase
+      .from('purchases')
+      .select('id, purchase_no, content, amount, project_id, projects(id, name)')
+      .eq('supplier_id', supplierId)
+      .not('project_id', 'is, null');
+
+    if (!purchases?.length) {
+      setProjectOptions([]);
+      setPurchaseOptions([]);
+      return;
+    }
+
+    // 3. 提取项目列表
+    const uniqueProjects = new Map();
+    purchases.forEach(p => {
+      if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
+        uniqueProjects.set(p.project_id, { id: p.project_id, name: p.projects.name });
+      }
+    });
+    const projectList = Array.from(uniqueProjects.values());
+    setProjectOptions(projectList);
+
+    // 4. 金额匹配（OCR金额 vs 采购金额）
+    let matchedPurchase = null;
+    if (ocrAmount && ocrAmount > 0) {
+      const tolerance = 0.10; // 容差 0.10 元
+      for (const p of purchases) {
+        const diff = Math.abs(parseFloat(p.amount) - ocrAmount);
+        if (diff <= tolerance) {
+          matchedPurchase = p;
+          break;
+        }
+      }
+    }
+
+    if (matchedPurchase) {
+      // ✅ 金额匹配成功：自动选中采购，继承项目和供应商
+      setPurchaseOptions([{
+        id: matchedPurchase.id,
+        name: `${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`,
+        supplier_name: suppliers[0].name,
+        supplier_id: supplierId,
+        amount: matchedPurchase.amount,
+      }]);
+      setSelectedPurchaseName(`${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`);
+      setForm(prev => ({
+        ...prev,
+        purchase_id: matchedPurchase.id,
+        project_id: matchedPurchase.project_id,
+        supplier_id: supplierId,
+      }));
+
+      // 自动选中项目
+      const matchedProject = projectList.find(p => p.id === matchedPurchase.project_id);
+      if (matchedProject) {
+        setSelectedProjectName(matchedProject.name);
+      }
+    } else {
+      // ❌ 金额匹配失败：走原有的项目选择流程
+      // 清空采购（让用户手动选择）
+      setForm(prev => ({ ...prev, purchase_id: '' }));
+      setSelectedPurchaseName('');
+      setPurchaseOptions([]);
+
+      // 如果只有一个项目，自动选中
+      if (projectList.length === 1) {
+        setSelectedProjectName(projectList[0].name);
+        setForm(prev => ({ ...prev, project_id: projectList[0].id }));
+      } else {
+        setForm(prev => ({ ...prev, project_id: '' }));
+      }
+    }
+  }, [resetDependentOptions]);
+
+  // ==================== 销项发票：根据甲方名称匹配项目 ====================
+  const loadProjectsByClientName = useCallback(async (clientName: string) => {
+    if (!clientName) {
+      resetDependentOptions();
+      return;
+    }
+
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('id, name, client')
+      .ilike('client', `%${clientName}%`)
+      .limit(50);
+
+    if (!projects?.length) {
+      setProjectOptions([]);
+      return;
+    }
+
+    const opts = projects.map(p => ({ id: p.id, name: p.name }));
+    setProjectOptions(opts);
+    if (opts.length === 1) {
+      setSelectedProjectName(opts[0].name);
+      setForm(prev => ({ ...prev, project_id: opts[0].id }));
+    }
+  }, [resetDependentOptions]);
+
+  // ==================== 对方名称变化时触发匹配 ====================
+  useEffect(() => {
+    const name = form.supplier_name;
     if (!name) {
       resetDependentOptions();
       return;
     }
 
     if (isInput) {
-      // 进项：根据供应商名称匹配供应商，再通过采购记录查项目
-      const { data: suppliers } = await supabase
-        .from('suppliers')
-        .select('id, name')
-        .ilike('name', `%${name}%`)
-        .limit(1);
-      if (!suppliers?.length) {
-        resetDependentOptions();
-        return;
-      }
-      const supplierId = suppliers[0].id;
-      setSelectedSupplierName(suppliers[0].name);
-      setForm(prev => ({ ...prev, supplier_id: supplierId }));
-
-      const { data: purchases } = await supabase
-        .from('purchases')
-        .select('project_id, projects(id, name)')
-        .eq('supplier_id', supplierId)
-        .not('project_id', 'is', null);
-      if (!purchases?.length) {
-        setProjectOptions([]);
-        return;
-      }
-      const unique = new Map();
-      purchases.forEach(p => {
-        if (p.project_id && p.projects && !unique.has(p.project_id))
-          unique.set(p.project_id, { id: p.project_id, name: p.projects.name });
-      });
-      const projects = Array.from(unique.values());
-      setProjectOptions(projects);
-      // 自动选中唯一项目
-      if (projects.length === 1) {
-        setSelectedProjectName(projects[0].name);
-        setForm(prev => ({ ...prev, project_id: projects[0].id }));
-      }
+      const ocrAmount = parseFloat(form.amount) || 0;
+      loadProjectsBySupplierName(name, ocrAmount);
     } else {
-      // 销项：直接匹配项目的 client 字段
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('id, name, client')
-        .ilike('client', `%${name}%`)
-        .limit(50);
-      if (!projects?.length) {
-        setProjectOptions([]);
-        return;
-      }
-      const opts = projects.map(p => ({ id: p.id, name: p.name }));
-      setProjectOptions(opts);
-      if (opts.length === 1) {
-        setSelectedProjectName(opts[0].name);
-        setForm(prev => ({ ...prev, project_id: opts[0].id }));
-      }
+      loadProjectsByClientName(name);
     }
-  }, [isInput, resetDependentOptions]);
-
-  // 对方名称变化时触发
-  useEffect(() => {
-    loadProjects(form.supplier_name);
-  }, [form.supplier_name, loadProjects]);
+  }, [form.supplier_name, form.amount, isInput, loadProjectsBySupplierName, loadProjectsByClientName, resetDependentOptions]);
 
   // ==================== 根据项目和供应商加载采购单列表 ====================
   const loadPurchases = useCallback(async () => {
@@ -153,7 +219,6 @@ export default function InvoiceFormPage() {
       amount: p.amount,
     })) || [];
     setPurchaseOptions(opts);
-    // 如果当前已选采购单不在列表中，清空
     if (form.purchase_id && !opts.some(opt => opt.id === form.purchase_id)) {
       setForm(prev => ({ ...prev, purchase_id: '' }));
       setSelectedPurchaseName('');
@@ -170,17 +235,14 @@ export default function InvoiceFormPage() {
     const projectId = params.get('projectId');
     const supplierId = params.get('supplierId');
     const purchaseId = params.get('purchaseId');
-    
-    // 设置 ID
+
     if (projectId) {
       setForm(prev => ({ ...prev, project_id: projectId }));
-      // 加载项目名称
       supabase.from('projects').select('name, client').eq('id', projectId).single()
         .then(({ data }) => {
           if (data) {
             setSelectedProjectName(data.name);
             setProjectOptions([{ id: projectId, name: data.name }]);
-            // 如果是销项发票，自动填充甲方名称
             if (!isInput && data.client) {
               setForm(prev => ({ ...prev, supplier_name: data.client }));
             }
@@ -189,7 +251,6 @@ export default function InvoiceFormPage() {
     }
     if (supplierId) {
       setForm(prev => ({ ...prev, supplier_id: supplierId }));
-      // 加载供应商名称
       supabase.from('suppliers').select('name').eq('id', supplierId).single()
         .then(({ data }) => {
           if (data) {
@@ -200,7 +261,6 @@ export default function InvoiceFormPage() {
     }
     if (purchaseId) {
       setForm(prev => ({ ...prev, purchase_id: purchaseId }));
-      // 加载采购名称
       supabase.from('purchases').select('purchase_no, content, amount, supplier_id, suppliers(name)').eq('id', purchaseId).single()
         .then(({ data }) => {
           if (data) {
@@ -213,7 +273,6 @@ export default function InvoiceFormPage() {
               supplier_id: data.supplier_id || '',
               amount: data.amount,
             }]);
-            // 如果供应商还没填，从采购单填充
             if (!form.supplier_id && data.supplier_id) {
               setForm(prev => ({ ...prev, supplier_id: data.supplier_id, supplier_name: data.suppliers?.name || '' }));
               setSelectedSupplierName(data.suppliers?.name || '');
@@ -224,7 +283,7 @@ export default function InvoiceFormPage() {
     }
   }, [location]);
 
-  // ==================== 编辑时加载发票数据 ====================
+  // ==================== 编辑时加载 ====================
   useEffect(() => {
     if (!isEdit || !canEdit) return;
     const loadInvoice = async () => {
@@ -254,7 +313,6 @@ export default function InvoiceFormPage() {
         });
         if (data.file_path) setCurrentFilePath(data.file_path);
 
-        // 回显项目名称
         if (data.project_id) {
           const { data: proj } = await supabase
             .from('projects')
@@ -268,7 +326,6 @@ export default function InvoiceFormPage() {
               setForm(prev => ({ ...prev, supplier_name: proj.client }));
           }
         }
-        // 回显供应商名称
         if (data.supplier_id) {
           const { data: sup } = await supabase
             .from('suppliers')
@@ -280,7 +337,6 @@ export default function InvoiceFormPage() {
             setSupplierOptions([{ id: data.supplier_id, name: sup.name }]);
           }
         }
-        // 回显采购单名称（进项且有关联）
         if (data.type === 'input' && data.purchase_id) {
           const { data: pur } = await supabase
             .from('purchases')
@@ -309,7 +365,7 @@ export default function InvoiceFormPage() {
     loadInvoice();
   }, [id, isEdit, canEdit, navigate]);
 
-  // ==================== 保存提交 ====================
+  // ==================== 保存 ====================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return;
@@ -437,7 +493,7 @@ export default function InvoiceFormPage() {
     }
   };
 
-  // ==================== 文件上传相关 ====================
+  // ==================== 文件上传 ====================
   const handleFileChange = (file: File) => {
     if (file.type !== 'application/pdf') {
       alert('请上传 PDF 文件');
@@ -518,7 +574,7 @@ export default function InvoiceFormPage() {
     }
   };
 
-  // 类型切换时重置一些状态
+  // 类型切换时重置
   useEffect(() => {
     resetDependentOptions();
     setSupplierOptions([]);
@@ -531,7 +587,6 @@ export default function InvoiceFormPage() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑发票' : '新建发票'}</h1>
 
-      {/* 上传区域 */}
       <div
         className={`mb-6 bg-gray-50 rounded-lg p-4 border border-dashed transition-colors ${
           dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
@@ -616,7 +671,6 @@ export default function InvoiceFormPage() {
             <input type="date" required value={form.invoice_date} onChange={e => setForm(prev => ({ ...prev, invoice_date: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" />
           </div>
 
-          {/* 所属项目 */}
           <div>
             <label className="block text-sm font-medium mb-1">所属项目</label>
             <SearchSelect
@@ -630,7 +684,6 @@ export default function InvoiceFormPage() {
             {form.supplier_name && !projectOptions.length && <p className="text-xs text-orange-500 mt-1">未找到匹配的项目，请手动选择</p>}
           </div>
 
-          {/* 关联采购（仅进项） */}
           {isInput && (
             <div>
               <label className="block text-sm font-medium mb-1">关联采购（可选）</label>
@@ -649,7 +702,6 @@ export default function InvoiceFormPage() {
             </div>
           )}
 
-          {/* 对方名称 */}
           <div>
             <label className="block text-sm font-medium mb-1">对方名称 *</label>
             <input
@@ -662,7 +714,6 @@ export default function InvoiceFormPage() {
             />
           </div>
 
-          {/* 关联供应商（仅进项） */}
           {isInput && (
             <div>
               <label className="block text-sm font-medium mb-1">关联供应商（可选）</label>
