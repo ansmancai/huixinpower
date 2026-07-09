@@ -349,7 +349,7 @@ export default function InvoiceFormPage() {
       .from('purchases')
       .select('id, purchase_no, content, amount, project_id, projects(id, name)')
       .eq('supplier_id', supplierId)
-      .not('project_id', 'is, null');
+      .not('project_id', 'is', null);
 
     if (!purchases?.length) {
       setProjectOptions([]);
