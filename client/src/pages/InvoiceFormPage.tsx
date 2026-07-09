@@ -59,104 +59,6 @@ export default function InvoiceFormPage() {
     setForm(prev => ({ ...prev, project_id: '', purchase_id: '' }));
   }, []);
 
-  // ==================== 根据供应商名称加载项目和采购（含金额匹配） ====================
-  const loadProjectsBySupplierName = useCallback(async (supplierName: string, ocrAmount?: number) => {
-    if (!supplierName) {
-      resetDependentOptions();
-      return;
-    }
-
-    // 1. 匹配供应商
-    const { data: suppliers } = await supabase
-      .from('suppliers')
-      .select('id, name')
-      .ilike('name', `%${supplierName}%`)
-      .limit(1);
-
-    if (!suppliers?.length) {
-      resetDependentOptions();
-      return;
-    }
-
-    const supplierId = suppliers[0].id;
-    setSelectedSupplierName(suppliers[0].name);
-    setForm(prev => ({ ...prev, supplier_id: supplierId }));
-
-    // 2. 查询该供应商的所有采购记录
-    const { data: purchases } = await supabase
-      .from('purchases')
-      .select('id, purchase_no, content, amount, project_id, projects(id, name)')
-      .eq('supplier_id', supplierId)
-      .not('project_id', 'is, null');
-
-    if (!purchases?.length) {
-      setProjectOptions([]);
-      setPurchaseOptions([]);
-      return;
-    }
-
-    // 3. 提取项目列表
-    const uniqueProjects = new Map();
-    purchases.forEach(p => {
-      if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
-        uniqueProjects.set(p.project_id, { id: p.project_id, name: p.projects.name });
-      }
-    });
-    const projectList = Array.from(uniqueProjects.values());
-    setProjectOptions(projectList);
-
-    // 4. 金额匹配（OCR金额 vs 采购金额）
-    let matchedPurchase = null;
-    if (ocrAmount && ocrAmount > 0) {
-      const tolerance = 0.10; // 容差 0.10 元
-      for (const p of purchases) {
-        const diff = Math.abs(parseFloat(p.amount) - ocrAmount);
-        if (diff <= tolerance) {
-          matchedPurchase = p;
-          break;
-        }
-      }
-    }
-
-    if (matchedPurchase) {
-      // ✅ 金额匹配成功：自动选中采购，继承项目和供应商
-      setPurchaseOptions([{
-        id: matchedPurchase.id,
-        name: `${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`,
-        supplier_name: suppliers[0].name,
-        supplier_id: supplierId,
-        amount: matchedPurchase.amount,
-      }]);
-      setSelectedPurchaseName(`${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`);
-      setForm(prev => ({
-        ...prev,
-        purchase_id: matchedPurchase.id,
-        project_id: matchedPurchase.project_id,
-        supplier_id: supplierId,
-      }));
-
-      // 自动选中项目
-      const matchedProject = projectList.find(p => p.id === matchedPurchase.project_id);
-      if (matchedProject) {
-        setSelectedProjectName(matchedProject.name);
-      }
-    } else {
-      // ❌ 金额匹配失败：走原有的项目选择流程
-      // 清空采购（让用户手动选择）
-      setForm(prev => ({ ...prev, purchase_id: '' }));
-      setSelectedPurchaseName('');
-      setPurchaseOptions([]);
-
-      // 如果只有一个项目，自动选中
-      if (projectList.length === 1) {
-        setSelectedProjectName(projectList[0].name);
-        setForm(prev => ({ ...prev, project_id: projectList[0].id }));
-      } else {
-        setForm(prev => ({ ...prev, project_id: '' }));
-      }
-    }
-  }, [resetDependentOptions]);
-
   // ==================== 销项发票：根据甲方名称匹配项目 ====================
   const loadProjectsByClientName = useCallback(async (clientName: string) => {
     if (!clientName) {
@@ -182,22 +84,6 @@ export default function InvoiceFormPage() {
       setForm(prev => ({ ...prev, project_id: opts[0].id }));
     }
   }, [resetDependentOptions]);
-
-  // ==================== 对方名称变化时触发匹配 ====================
-  useEffect(() => {
-    const name = form.supplier_name;
-    if (!name) {
-      resetDependentOptions();
-      return;
-    }
-
-    if (isInput) {
-      const ocrAmount = parseFloat(form.amount) || 0;
-      loadProjectsBySupplierName(name, ocrAmount);
-    } else {
-      loadProjectsByClientName(name);
-    }
-  }, [form.supplier_name, form.amount, isInput, loadProjectsBySupplierName, loadProjectsByClientName, resetDependentOptions]);
 
   // ==================== 根据项目和供应商加载采购单列表 ====================
   const loadPurchases = useCallback(async () => {
@@ -440,6 +326,80 @@ export default function InvoiceFormPage() {
 
   const formatDateForInput = (dateStr: string) => dateStr.replace(/年|月/g, '-').replace(/日/g, '');
 
+  // ==================== 执行进项发票的匹配（供应商+金额） ====================
+  const matchPurchaseByAmount = useCallback(async (supplierName: string, ocrAmount: number) => {
+    if (!supplierName || ocrAmount <= 0) return;
+
+    // 匹配供应商
+    const { data: matchedSuppliers } = await supabase
+      .from('suppliers')
+      .select('id, name')
+      .ilike('name', `%${supplierName}%`)
+      .limit(1);
+
+    if (!matchedSuppliers?.length) return;
+
+    const supplierId = matchedSuppliers[0].id;
+    setSelectedSupplierName(matchedSuppliers[0].name);
+    setForm(prev => ({ ...prev, supplier_id: supplierId }));
+    setSupplierOptions([{ id: supplierId, name: matchedSuppliers[0].name }]);
+
+    // 查询该供应商的所有采购记录
+    const { data: purchases } = await supabase
+      .from('purchases')
+      .select('id, purchase_no, content, amount, project_id, projects(id, name)')
+      .eq('supplier_id', supplierId)
+      .not('project_id', 'is, null');
+
+    if (!purchases?.length) {
+      setProjectOptions([]);
+      setPurchaseOptions([]);
+      return;
+    }
+
+    // 提取项目列表
+    const uniqueProjects = new Map();
+    purchases.forEach(p => {
+      if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
+        uniqueProjects.set(p.project_id, { id: p.project_id, name: p.projects.name });
+      }
+    });
+    const projectList = Array.from(uniqueProjects.values());
+    setProjectOptions(projectList);
+
+    // 金额匹配（容差 0.10 元）
+    const tolerance = 0.10;
+    const matchedPurchase = purchases.find(p => Math.abs(parseFloat(p.amount) - ocrAmount) <= tolerance);
+
+    if (matchedPurchase) {
+      // ✅ 匹配成功：自动关联采购和项目
+      const matchedProject = projectList.find(p => p.id === matchedPurchase.project_id);
+      setForm(prev => ({
+        ...prev,
+        purchase_id: matchedPurchase.id,
+        project_id: matchedPurchase.project_id,
+      }));
+      setSelectedProjectName(matchedProject?.name || '');
+      setSelectedPurchaseName(`${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`);
+      setPurchaseOptions([{
+        id: matchedPurchase.id,
+        name: `${matchedPurchase.purchase_no} - ${matchedPurchase.content} (¥${matchedPurchase.amount})`,
+        supplier_name: matchedSuppliers[0].name,
+        supplier_id: supplierId,
+        amount: matchedPurchase.amount,
+      }]);
+    } else {
+      // ❌ 匹配失败：清空采购，保留项目列表供用户手动选择
+      setForm(prev => ({ ...prev, purchase_id: '' }));
+      setSelectedPurchaseName('');
+      setPurchaseOptions([]);
+      if (projectList.length === 1) {
+        setSelectedProjectName(projectList[0].name);
+        setForm(prev => ({ ...prev, project_id: projectList[0].id }));
+      }
+    }
+  }, []);
+
   const handleRecognize = async () => {
     if (!uploadedFile) {
       alert('请先选择要识别的PDF文件');
@@ -483,15 +443,15 @@ export default function InvoiceFormPage() {
         updates.purchase_id = '';
         updates.supplier_id = '';
       }
+
       setForm(prev => ({ ...prev, ...updates, type: detectedType }));
-      // 延迟触发匹配（确保金额已更新） 
-      setTimeout(() => {
-       const name = updates.supplier_name || form.supplier_name;
-       const amount = parseFloat(updates.amount || form.amount) || 0;
-       if (name && isInput) {
-         loadProjectsBySupplierName(name, amount);
-       }
-      }, 100);
+
+      // ✅ 进项发票：立即执行金额匹配
+      if (detectedType === 'input' && counterparty) {
+        const ocrAmount = parseFloat(updates.amount || '0');
+        await matchPurchaseByAmount(counterparty, ocrAmount);
+      }
+
       alert(`✅ 识别成功！\n发票类型：${detectedType === 'input' ? '进项' : '销项'}\n已自动填充表单，请核对并补充信息。`);
     } catch (err: any) {
       console.error(err);
