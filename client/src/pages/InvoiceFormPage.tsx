@@ -484,6 +484,14 @@ export default function InvoiceFormPage() {
         updates.supplier_id = '';
       }
       setForm(prev => ({ ...prev, ...updates, type: detectedType }));
+      // 延迟触发匹配（确保金额已更新） 
+      setTimeout(() => {
+       const name = updates.supplier_name || form.supplier_name;
+       const amount = parseFloat(updates.amount || form.amount) || 0;
+       if (name && isInput) {
+         loadProjectsBySupplierName(name, amount);
+       }
+      }, 100);
       alert(`✅ 识别成功！\n发票类型：${detectedType === 'input' ? '进项' : '销项'}\n已自动填充表单，请核对并补充信息。`);
     } catch (err: any) {
       console.error(err);
