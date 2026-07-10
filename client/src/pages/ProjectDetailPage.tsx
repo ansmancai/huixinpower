@@ -22,6 +22,17 @@ export default function ProjectDetailPage() {
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
 
+  // 支付方式映射
+  const paymentMethodMap: Record<string, string> = {
+    bank: '银行转账',
+    cash: '现金',
+    wechat: '微信',
+    alipay: '支付宝',
+    draft: '汇票',
+    check: '支票',
+    other: '其他',
+  };
+
   useEffect(() => {
     const loadData = async () => {
       if (!id) return;
@@ -61,15 +72,10 @@ export default function ProjectDetailPage() {
         setRelatedInvoices(invoicesData || []);
 
         // 计算统计数据
-        // 采购总额
         const totalPurchases = purchasesData?.reduce((sum, p) => sum + parseFloat(p.amount), 0) || 0;
-        // 已付给供应商（付款）
         const totalPaid = transactionsData?.filter(t => t.type === 'payment').reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-        // 从客户收到的收款
         const totalReceipt = transactionsData?.filter(t => t.type === 'receipt').reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
-        // 开给客户的发票（销项）
         const totalInvoiced = invoicesData?.filter(i => i.type === 'output').reduce((sum, i) => sum + parseFloat(i.total_amount), 0) || 0;
-        // 从供应商收到的发票（进项）
         const totalInvoicedFromSupplier = invoicesData?.filter(i => i.type === 'input').reduce((sum, i) => sum + parseFloat(i.total_amount), 0) || 0;
 
         setStats({
@@ -314,7 +320,6 @@ export default function ProjectDetailPage() {
               </thead>
               <tbody>
                 {relatedPurchases.map((p) => {
-                  // 计算该采购的已付款金额
                   const paidForPurchase = relatedTransactions
                     .filter(t => t.purchase_id === p.id && t.type === 'payment')
                     .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
@@ -358,31 +363,41 @@ export default function ProjectDetailPage() {
                   <th className="px-4 py-2 text-left text-sm">类型</th>
                   <th className="px-4 py-2 text-right text-sm">金额</th>
                   <th className="px-4 py-2 text-left text-sm">支付方式</th>
-                  <th className="px-4 py-2 text-left text-sm">关联供应商</th>
+                  <th className="px-4 py-2 text-left text-sm">对方名称</th>
                   <th className="px-4 py-2 text-left text-sm">备注</th>
                 </tr>
               </thead>
               <tbody>
-                {relatedTransactions.map((t) => (
-                  <tr key={t.id} className="border-t">
-                    <td className="px-4 py-2 text-sm">{new Date(t.date).toLocaleDateString()}</td>
-                    <td className="px-4 py-2">
-                      <span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                        {t.type === 'receipt' ? '收款' : '付款'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>
-                        {t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-sm">
-                      {t.payment_method === 'bank' ? '银行转账' : t.payment_method === 'cash' ? '现金' : t.payment_method === 'wechat' ? '微信' : t.payment_method === 'alipay' ? '支付宝' : t.payment_method}
-                    </td>
-                    <td className="px-4 py-2 text-sm">{t.suppliers?.name || '-'}</td>
-                    <td className="px-4 py-2 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
-                  </tr>
-                ))}
+                {relatedTransactions.map((t) => {
+                  // 获取对方名称：付款显示供应商，收款显示counterparty_name
+                  const counterpartyName = t.type === 'payment' 
+                    ? t.suppliers?.name || '-' 
+                    : t.counterparty_name || '-';
+                  return (
+                    <tr key={t.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm">
+                        <Link to={`/transactions/${t.id}`} className="text-blue-600 hover:underline">
+                          {new Date(t.date).toLocaleDateString()}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                          {t.type === 'receipt' ? '收款' : '付款'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>
+                          {t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        {paymentMethodMap[t.payment_method] || t.payment_method}
+                      </td>
+                      <td className="px-4 py-2 text-sm">{counterpartyName}</td>
+                      <td className="px-4 py-2 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -425,7 +440,7 @@ export default function ProjectDetailPage() {
                       {new Date(inv.invoice_date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 text-sm">
-                      {inv.suppliers?.name || '-'}
+                      {inv.supplier_name || '-'}
                     </td>
                     <td className="px-4 py-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs ${
