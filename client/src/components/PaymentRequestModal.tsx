@@ -240,22 +240,22 @@ export default function PaymentRequestModal({
             </div>
           </div>
 
-          {/* 可能关联的发票 */}
-          {relatedInvoices.length > 0 && (
-            <div className="mt-6 pt-4 border-t">
-              <h4 className="text-md font-semibold mb-3">📄 可能关联的发票</h4>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left">发票号码</th>
-                      <th className="px-3 py-2 text-right">金额</th>
-                      <th className="px-3 py-2 text-left">开票日期</th>
-                      <th className="px-3 py-2 text-center">状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {relatedInvoices.map((inv) => (
+          {/* 可能关联的发票 - 始终显示 */}
+          <div className="mt-6 pt-4 border-t">
+            <h4 className="text-md font-semibold mb-3">📄 可能关联的发票</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">发票号码</th>
+                    <th className="px-3 py-2 text-right">金额</th>
+                    <th className="px-3 py-2 text-left">开票日期</th>
+                    <th className="px-3 py-2 text-center">状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {relatedInvoices.length > 0 ? (
+                    relatedInvoices.map((inv) => (
                       <tr key={inv.id} className="border-t">
                         <td className="px-3 py-2 font-mono">{inv.invoice_no}</td>
                         <td className="px-3 py-2 text-right">{formatAmount(parseFloat(inv.total_amount))}</td>
@@ -270,15 +270,21 @@ export default function PaymentRequestModal({
                           </span>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                此付款单关联的采购单对应的发票（仅供参考）
-              </p>
+                    ))
+                  ) : (
+                    <tr className="border-t">
+                      <td className="px-3 py-2 text-center text-gray-400" colSpan={4}>
+                        —
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+            <p className="text-xs text-gray-400 mt-2">
+              此付款单关联的采购单对应的发票（仅供参考）
+            </p>
+          </div>
         </div>
         
         <div className="flex justify-end gap-3 p-4 border-t">
