@@ -28,7 +28,7 @@ export default function InvoicesPage() {
   // 批量操作相关状态
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set()); // 被用户手动操作过的记录ID
+  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
   const pageSize = 20;
@@ -96,13 +96,8 @@ export default function InvoicesPage() {
       setInvoices(pageData || []);
       setTotal(totalCount || 0);
 
-      // 退出批量模式时清空选择，重入时刷新勾选状态
-      if (!batchMode) {
-        setSelectedIds(new Set());
-        setModifiedIds(new Set());
-        setSelectAll(false);
-      } else {
-        // 批量模式下重新加载数据后，根据当前delivered_at重新构建selectedIds
+      // 批量模式下：如果当前在批量模式，根据加载的数据重建勾选状态
+      if (batchMode) {
         const newSelectedIds = new Set<string>();
         pageData?.forEach(item => {
           if (item.delivered_at) {
@@ -110,8 +105,12 @@ export default function InvoicesPage() {
           }
         });
         setSelectedIds(newSelectedIds);
-        setModifiedIds(new Set()); // 刷新后清除高亮
-        setSelectAll(pageData?.length > 0 && newSelectedIds.size === pageData.length);
+        setModifiedIds(new Set());
+        setSelectAll(newSelectedIds.size === pageData?.length && pageData?.length > 0);
+      } else {
+        setSelectedIds(new Set());
+        setModifiedIds(new Set());
+        setSelectAll(false);
       }
     } catch (error) {
       console.error('加载发票失败', error);
@@ -134,6 +133,21 @@ export default function InvoicesPage() {
     }
   };
 
+  // 进入批量模式
+  const enterBatchMode = () => {
+    setBatchMode(true);
+    // 根据当前页数据立即构建勾选状态
+    const newSelectedIds = new Set<string>();
+    invoices.forEach(item => {
+      if (item.delivered_at) {
+        newSelectedIds.add(item.id);
+      }
+    });
+    setSelectedIds(newSelectedIds);
+    setModifiedIds(new Set());
+    setSelectAll(newSelectedIds.size === invoices.length && invoices.length > 0);
+  };
+
   // 保存状态：根据当前勾选状态批量更新数据库
   const handleSaveStatus = async () => {
     const ids = Array.from(selectedIds);
@@ -143,23 +157,22 @@ export default function InvoicesPage() {
     }
     const now = new Date().toISOString();
     try {
-      // 先处理所有选中的记录：标记为已交付
-      const { error: deliverError } = await supabase
-        .from('invoices')
-        .update({ delivered_at: now })
-        .in('id', ids);
-      if (deliverError) throw deliverError;
-
-      // 再处理当前页所有未选中的记录：清空交付时间
       const allIds = invoices.map(i => i.id);
       const unselectedIds = allIds.filter(id => !selectedIds.has(id));
-      if (unselectedIds.length > 0) {
-        const { error: undeliverError } = await supabase
-          .from('invoices')
-          .update({ delivered_at: null })
-          .in('id', unselectedIds);
-        if (undeliverError) throw undeliverError;
+
+      // 批量更新：选中的标记为已交付，未选中的清空
+      const updates = [];
+      if (ids.length > 0) {
+        updates.push(
+          supabase.from('invoices').update({ delivered_at: now }).in('id', ids)
+        );
       }
+      if (unselectedIds.length > 0) {
+        updates.push(
+          supabase.from('invoices').update({ delivered_at: null }).in('id', unselectedIds)
+        );
+      }
+      await Promise.all(updates);
 
       alert(`成功更新 ${ids.length} 张发票为已交付，${unselectedIds.length} 张为未交付`);
       setBatchMode(false);
@@ -175,10 +188,8 @@ export default function InvoicesPage() {
   // 全选：勾选当前页所有记录（只改界面）
   const handleSelectAll = () => {
     const allIds = invoices.map(i => i.id);
-    const newSet = new Set(allIds);
-    // 标记所有记录为已修改（全选后所有记录都被“操作过”）
     allIds.forEach(id => modifiedIds.add(id));
-    setSelectedIds(newSet);
+    setSelectedIds(new Set(allIds));
     setSelectAll(true);
   };
 
@@ -199,7 +210,6 @@ export default function InvoicesPage() {
       newSet.add(id);
     }
     setSelectedIds(newSet);
-    // 记录该行被手动操作过
     modifiedIds.add(id);
     setSelectAll(newSet.size === invoices.length && invoices.length > 0);
   };
@@ -312,7 +322,7 @@ export default function InvoicesPage() {
       <div className="flex gap-2 mb-4 flex-wrap">
         {!batchMode ? (
           <button
-            onClick={() => setBatchMode(true)}
+            onClick={enterBatchMode}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             📋 批量标记交付
@@ -391,7 +401,7 @@ export default function InvoicesPage() {
                     <tr 
                       key={i.id} 
                       className={`hover:bg-gray-50 transition-colors ${
-                        isModified ? (isSelected ? 'bg-green-50' : 'bg-red-50') : ''
+                        isModified ? (isSelected ? 'bg-green-100' : 'bg-red-100') : ''
                       }`}
                     >
                       {batchMode && (
