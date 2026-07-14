@@ -24,10 +24,13 @@ export default function InvoicesPage() {
   const [totalAmountSum, setTotalAmountSum] = useState(0);
   const [totalTaxSum, setTotalTaxSum] = useState(0);
   const [totalTotalSum, setTotalTotalSum] = useState(0);
-  // 批量操作相关
+
+  // 批量操作相关状态
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set()); // 被用户手动操作过的记录ID
   const [selectAll, setSelectAll] = useState(false);
+
   const pageSize = 20;
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -92,9 +95,23 @@ export default function InvoicesPage() {
       
       setInvoices(pageData || []);
       setTotal(totalCount || 0);
+
+      // 退出批量模式时清空选择，重入时刷新勾选状态
       if (!batchMode) {
         setSelectedIds(new Set());
+        setModifiedIds(new Set());
         setSelectAll(false);
+      } else {
+        // 批量模式下重新加载数据后，根据当前delivered_at重新构建selectedIds
+        const newSelectedIds = new Set<string>();
+        pageData?.forEach(item => {
+          if (item.delivered_at) {
+            newSelectedIds.add(item.id);
+          }
+        });
+        setSelectedIds(newSelectedIds);
+        setModifiedIds(new Set()); // 刷新后清除高亮
+        setSelectAll(pageData?.length > 0 && newSelectedIds.size === pageData.length);
       }
     } catch (error) {
       console.error('加载发票失败', error);
@@ -117,63 +134,63 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleBatchDeliver = async () => {
-    if (selectedIds.size === 0) {
-      alert('请先选择要标记的发票');
+  // 保存状态：根据当前勾选状态批量更新数据库
+  const handleSaveStatus = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      alert('请至少勾选一张发票');
       return;
     }
-    const ids = Array.from(selectedIds);
     const now = new Date().toISOString();
     try {
-      const { error } = await supabase
+      // 先处理所有选中的记录：标记为已交付
+      const { error: deliverError } = await supabase
         .from('invoices')
         .update({ delivered_at: now })
         .in('id', ids);
-      if (error) throw error;
-      alert(`成功标记 ${ids.length} 张发票为已交付`);
+      if (deliverError) throw deliverError;
+
+      // 再处理当前页所有未选中的记录：清空交付时间
+      const allIds = invoices.map(i => i.id);
+      const unselectedIds = allIds.filter(id => !selectedIds.has(id));
+      if (unselectedIds.length > 0) {
+        const { error: undeliverError } = await supabase
+          .from('invoices')
+          .update({ delivered_at: null })
+          .in('id', unselectedIds);
+        if (undeliverError) throw undeliverError;
+      }
+
+      alert(`成功更新 ${ids.length} 张发票为已交付，${unselectedIds.length} 张为未交付`);
       setBatchMode(false);
       setSelectedIds(new Set());
+      setModifiedIds(new Set());
       setSelectAll(false);
       loadInvoices();
     } catch (error: any) {
-      alert('标记失败: ' + error.message);
+      alert('操作失败: ' + error.message);
     }
   };
 
-  const handleBatchUndeliver = async () => {
-    if (selectedIds.size === 0) {
-      alert('请先选择要取消标记的发票');
-      return;
-    }
-    const ids = Array.from(selectedIds);
-    if (!confirm(`确定要取消 ${ids.length} 张发票的交付标记吗？`)) return;
-    try {
-      const { error } = await supabase
-        .from('invoices')
-        .update({ delivered_at: null })
-        .in('id', ids);
-      if (error) throw error;
-      alert(`成功取消 ${ids.length} 张发票的交付标记`);
-      setBatchMode(false);
-      setSelectedIds(new Set());
-      setSelectAll(false);
-      loadInvoices();
-    } catch (error: any) {
-      alert('取消标记失败: ' + error.message);
-    }
+  // 全选：勾选当前页所有记录（只改界面）
+  const handleSelectAll = () => {
+    const allIds = invoices.map(i => i.id);
+    const newSet = new Set(allIds);
+    // 标记所有记录为已修改（全选后所有记录都被“操作过”）
+    allIds.forEach(id => modifiedIds.add(id));
+    setSelectedIds(newSet);
+    setSelectAll(true);
   };
 
-  const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectedIds(new Set());
-      setSelectAll(false);
-    } else {
-      const ids = invoices.map(i => i.id);
-      setSelectedIds(new Set(ids));
-      setSelectAll(true);
-    }
+  // 取消全选：清空当前页所有勾选框（只改界面）
+  const handleDeselectAll = () => {
+    const allIds = invoices.map(i => i.id);
+    allIds.forEach(id => modifiedIds.add(id));
+    setSelectedIds(new Set());
+    setSelectAll(false);
   };
 
+  // 切换单行选择
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -182,12 +199,15 @@ export default function InvoicesPage() {
       newSet.add(id);
     }
     setSelectedIds(newSet);
+    // 记录该行被手动操作过
+    modifiedIds.add(id);
     setSelectAll(newSet.size === invoices.length && invoices.length > 0);
   };
 
   const exitBatchMode = () => {
     setBatchMode(false);
     setSelectedIds(new Set());
+    setModifiedIds(new Set());
     setSelectAll(false);
   };
 
@@ -300,16 +320,22 @@ export default function InvoicesPage() {
         ) : (
           <>
             <button
-              onClick={handleBatchDeliver}
+              onClick={handleSaveStatus}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
             >
-              ✅ 标记为已交付 ({selectedIds.size})
+              💾 保存状态 ({selectedIds.size})
             </button>
             <button
-              onClick={handleBatchUndeliver}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+              onClick={handleSelectAll}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
             >
-              ↩️ 取消标记 ({selectedIds.size})
+              ✅ 全选
+            </button>
+            <button
+              onClick={handleDeselectAll}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+            >
+              ❌ 取消全选
             </button>
             <button
               onClick={exitBatchMode}
@@ -332,7 +358,13 @@ export default function InvoicesPage() {
                       <input
                         type="checkbox"
                         checked={selectAll}
-                        onChange={toggleSelectAll}
+                        onChange={() => {
+                          if (selectAll) {
+                            handleDeselectAll();
+                          } else {
+                            handleSelectAll();
+                          }
+                        }}
                         className="w-4 h-4"
                       />
                     </th>
@@ -352,65 +384,74 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {invoices.map(i => (
-                  <tr key={i.id} className="hover:bg-gray-50">
-                    {batchMode && (
-                      <td className="px-2 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(i.id)}
-                          onChange={() => toggleSelect(i.id)}
-                          className="w-4 h-4"
-                        />
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
-                    <td className="px-4 py-3">
-                      <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
-                        {i.invoice_no}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
-                    <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm">{i.supplier_name || i.suppliers?.name || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      {i.file_path ? (
-                        <a 
-                          href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-red-500 hover:text-red-700 text-lg"
-                        >
-                          📄
-                        </a>
-                      ) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {statusMap[i.status] || i.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {i.delivered_at ? (
-                        <span className="text-green-600 text-sm">
-                          {new Date(i.delivered_at).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-red-400 text-sm">—</span>
+                {invoices.map(i => {
+                  const isModified = modifiedIds.has(i.id);
+                  const isSelected = selectedIds.has(i.id);
+                  return (
+                    <tr 
+                      key={i.id} 
+                      className={`hover:bg-gray-50 transition-colors ${
+                        isModified ? (isSelected ? 'bg-green-50' : 'bg-red-50') : ''
+                      }`}
+                    >
+                      {batchMode && (
+                        <td className="px-2 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(i.id)}
+                            className="w-4 h-4"
+                          />
+                        </td>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <div className="flex justify-center gap-2">
-                        <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
-                        {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm whitespace-nowrap">编辑</Link>}
-                        {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm whitespace-nowrap">删除</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
+                      <td className="px-4 py-3">
+                        <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
+                          {i.invoice_no}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-right">{formatAmount(parseFloat(i.amount))}</td>
+                      <td className="px-4 py-3 text-right">{i.tax_amount ? formatAmount(parseFloat(i.tax_amount)) : '-'}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatAmount(parseFloat(i.total_amount))}</td>
+                      <td className="px-4 py-3 text-sm">{new Date(i.invoice_date).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm">{i.supplier_name || i.suppliers?.name || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{i.projects?.name || i.project_id || '-'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {i.file_path ? (
+                          <a 
+                            href={`${supabase.storage.from('invoices').getPublicUrl(i.file_path).data.publicUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-500 hover:text-red-700 text-lg"
+                          >
+                            📄
+                          </a>
+                        ) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs ${i.status === 'paid' ? 'bg-green-100 text-green-800' : i.status === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {statusMap[i.status] || i.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {i.delivered_at ? (
+                          <span className="text-green-600 text-sm">
+                            {new Date(i.delivered_at).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-red-400 text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <div className="flex justify-center gap-2">
+                          <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
+                          {canEdit && <Link to={`/invoices/${i.id}/edit`} className="text-blue-600 text-sm whitespace-nowrap">编辑</Link>}
+                          {user?.role === 'admin' && <button onClick={() => handleDelete(i.id, i.invoice_no)} className="text-red-600 text-sm whitespace-nowrap">删除</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               {total > 0 && (
                 <tfoot className="bg-gray-50 border-t">
