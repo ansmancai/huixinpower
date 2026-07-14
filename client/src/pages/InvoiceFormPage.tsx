@@ -30,6 +30,7 @@ export default function InvoiceFormPage() {
     supplier_id: '',
     status: 'unpaid',
     remark: '',
+    delivered_at: '',  // 新增
   });
 
   const [selectedProjectName, setSelectedProjectName] = useState('');
@@ -196,6 +197,7 @@ export default function InvoiceFormPage() {
           supplier_id: data.supplier_id || '',
           status: data.status || 'unpaid',
           remark: data.remark || '',
+          delivered_at: data.delivered_at || '',
         });
         if (data.file_path) setCurrentFilePath(data.file_path);
 
@@ -281,6 +283,7 @@ export default function InvoiceFormPage() {
         status: form.status,
         remark: form.remark || null,
         file_path: filePath,
+        delivered_at: form.delivered_at || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -330,7 +333,6 @@ export default function InvoiceFormPage() {
   const matchPurchaseByAmount = useCallback(async (supplierName: string, ocrAmount: number) => {
     if (!supplierName || ocrAmount <= 0) return;
 
-    // 匹配供应商
     const { data: matchedSuppliers } = await supabase
       .from('suppliers')
       .select('id, name')
@@ -344,7 +346,6 @@ export default function InvoiceFormPage() {
     setForm(prev => ({ ...prev, supplier_id: supplierId }));
     setSupplierOptions([{ id: supplierId, name: matchedSuppliers[0].name }]);
 
-    // 查询该供应商的所有采购记录
     const { data: purchases } = await supabase
       .from('purchases')
       .select('id, purchase_no, content, amount, project_id, projects(id, name)')
@@ -357,7 +358,6 @@ export default function InvoiceFormPage() {
       return;
     }
 
-    // 提取项目列表
     const uniqueProjects = new Map();
     purchases.forEach(p => {
       if (p.project_id && p.projects && !uniqueProjects.has(p.project_id)) {
@@ -367,12 +367,10 @@ export default function InvoiceFormPage() {
     const projectList = Array.from(uniqueProjects.values());
     setProjectOptions(projectList);
 
-    // 金额匹配（容差 0.10 元）
     const tolerance = 0.10;
     const matchedPurchase = purchases.find(p => Math.abs(parseFloat(p.amount) - ocrAmount) <= tolerance);
 
     if (matchedPurchase) {
-      // ✅ 匹配成功：自动关联采购和项目
       const matchedProject = projectList.find(p => p.id === matchedPurchase.project_id);
       setForm(prev => ({
         ...prev,
@@ -389,7 +387,6 @@ export default function InvoiceFormPage() {
         amount: matchedPurchase.amount,
       }]);
     } else {
-      // ❌ 匹配失败：清空采购，保留项目列表供用户手动选择
       setForm(prev => ({ ...prev, purchase_id: '' }));
       setSelectedPurchaseName('');
       setPurchaseOptions([]);
@@ -446,7 +443,6 @@ export default function InvoiceFormPage() {
 
       setForm(prev => ({ ...prev, ...updates, type: detectedType }));
 
-      // ✅ 进项发票：立即执行金额匹配
       if (detectedType === 'input' && counterparty) {
         const ocrAmount = parseFloat((updates.total_amount || '0').replace(/,/g, ''));
         await matchPurchaseByAmount(counterparty, ocrAmount);
@@ -705,6 +701,19 @@ export default function InvoiceFormPage() {
               <option value="cancelled">作废</option>
             </select>
           </div>
+
+          {/* 新增：交付时间 */}
+          <div>
+            <label className="block text-sm font-medium mb-1">交付时间</label>
+            <input
+              type="date"
+              value={form.delivered_at || ''}
+              onChange={e => setForm(prev => ({ ...prev, delivered_at: e.target.value }))}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <p className="text-xs text-gray-500 mt-1">留空表示未交付</p>
+          </div>
+
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">备注</label>
             <textarea rows={3} value={form.remark} onChange={e => setForm(prev => ({ ...prev, remark: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" />

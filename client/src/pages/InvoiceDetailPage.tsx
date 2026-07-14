@@ -75,7 +75,7 @@ export default function InvoiceDetailPage() {
   };
 
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
-  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款',cancelled: '作废' };
+  const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款', cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
 
   if (loading) {
@@ -173,7 +173,7 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t">
+        <div className="grid grid-cols-4 gap-6 mt-6 pt-6 border-t">
           <div className="text-center">
             <p className="text-sm text-gray-500">金额</p>
             <p className="text-xl font-semibold">{formatAmount(parseFloat(invoice.amount))}</p>
@@ -185,6 +185,18 @@ export default function InvoiceDetailPage() {
           <div className="text-center">
             <p className="text-sm text-gray-500">总金额</p>
             <p className="text-xl font-semibold text-blue-600">{formatAmount(parseFloat(invoice.total_amount))}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-gray-500">交付状态</p>
+            <p className="text-xl font-semibold">
+              {invoice.delivered_at ? (
+                <span className="text-green-600 text-base">
+                  ✅ {new Date(invoice.delivered_at).toLocaleDateString()}
+                </span>
+              ) : (
+                <span className="text-red-500 text-base">未交付</span>
+              )}
+            </p>
           </div>
         </div>
 

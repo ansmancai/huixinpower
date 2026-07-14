@@ -16,19 +16,14 @@ export default function InvoicesPage() {
   const [type, setType] = useState('all');
   const [projectId, setProjectId] = useState('all');
   const [status, setStatus] = useState('all');
+  const [deliveryStatus, setDeliveryStatus] = useState('all'); // 新增
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
-  
-  // 日期筛选
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  
-  // 合计金额
-  const [totalAmountSum, setTotalAmountSum] = useState(0);
-  const [totalTaxSum, setTotalTaxSum] = useState(0);
-  const [totalTotalSum, setTotalTotalSum] = useState(0);
-  
+  // 批量操作相关
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   const pageSize = 20;
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -47,56 +42,34 @@ export default function InvoicesPage() {
     try {
       let baseQuery = supabase.from('invoices').select('*, projects(name), suppliers(name), file_path', { count: 'exact' });
       
-      // 关键字搜索（支持发票号码、对方名称、项目名称）
       if (keyword) {
-        // 搜索项目名称匹配的项目ID
-        const { data: matchedProjects } = await supabase
-          .from('projects')
-          .select('id')
-          .ilike('name', `%${keyword}%`);
+        const { data: matchedProjects } = await supabase.from('projects').select('id').ilike('name', `%${keyword}%`);
         const projectIds = matchedProjects?.map(p => p.id) || [];
-        
-        // 构建 OR 条件
         const conditions = [`invoice_no.ilike.%${keyword}%`, `supplier_name.ilike.%${keyword}%`];
         if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
-        
         baseQuery = baseQuery.or(conditions.join(','));
       }
       
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
       if (status !== 'all') baseQuery = baseQuery.eq('status', status);
-      
-      // 日期筛选
-      if (dateFrom) baseQuery = baseQuery.gte('invoice_date', dateFrom);
-      if (dateTo) baseQuery = baseQuery.lte('invoice_date', dateTo);
-      
-      // 先获取全部符合条件的数据用于计算合计
-      const { data: allData } = await baseQuery;
-      
-      // 计算合计
-      let sumAmount = 0;
-      let sumTax = 0;
-      let sumTotal = 0;
-      allData?.forEach(item => {
-        sumAmount += parseFloat(item.amount) || 0;
-        sumTax += parseFloat(item.tax_amount) || 0;
-        sumTotal += parseFloat(item.total_amount) || 0;
-      });
-      setTotalAmountSum(sumAmount);
-      setTotalTaxSum(sumTax);
-      setTotalTotalSum(sumTotal);
-      
-      // 获取总数
+      // 新增：交付状态筛选
+      if (deliveryStatus === 'delivered') baseQuery = baseQuery.not('delivered_at', 'is', null);
+      if (deliveryStatus === 'undelivered') baseQuery = baseQuery.is('delivered_at', null);
+
       const { count: totalCount } = await baseQuery;
       
-      // 分页数据
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       const { data: pageData } = await baseQuery.range(from, to).order('invoice_date', { ascending: false });
       
       setInvoices(pageData || []);
       setTotal(totalCount || 0);
+      // 退出批量模式时清空选择
+      if (!batchMode) {
+        setSelectedIds(new Set());
+        setSelectAll(false);
+      }
     } catch (error) {
       console.error('加载发票失败', error);
     } finally {
@@ -107,7 +80,7 @@ export default function InvoicesPage() {
   // 加载数据
   useEffect(() => {
     loadInvoices();
-  }, [page, type, projectId, status, keyword, dateFrom, dateTo]);
+  }, [page, type, projectId, status, keyword, deliveryStatus]);
 
   // 删除函数
   const handleDelete = async (id: string, no: string) => {
@@ -120,21 +93,103 @@ export default function InvoicesPage() {
     }
   };
 
-  // 重置筛选
-  const resetFilters = () => {
-    setKeyword('');
-    setType('all');
-    setProjectId('all');
-    setStatus('all');
-    setDateFrom('');
-    setDateTo('');
-    setPage(1);
+  // 批量标记交付
+  const handleBatchDeliver = async () => {
+    if (selectedIds.size === 0) {
+      alert('请先选择要标记的发票');
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    const now = new Date().toISOString();
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ delivered_at: now })
+        .in('id', ids);
+      if (error) throw error;
+      alert(`成功标记 ${ids.length} 张发票为已交付`);
+      setBatchMode(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      loadInvoices();
+    } catch (error: any) {
+      alert('标记失败: ' + error.message);
+    }
+  };
+
+  // 批量取消标记
+  const handleBatchUndeliver = async () => {
+    if (selectedIds.size === 0) {
+      alert('请先选择要取消标记的发票');
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    if (!confirm(`确定要取消 ${ids.length} 张发票的交付标记吗？`)) return;
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ delivered_at: null })
+        .in('id', ids);
+      if (error) throw error;
+      alert(`成功取消 ${ids.length} 张发票的交付标记`);
+      setBatchMode(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      loadInvoices();
+    } catch (error: any) {
+      alert('取消标记失败: ' + error.message);
+    }
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    } else {
+      const ids = invoices.map(i => i.id);
+      setSelectedIds(new Set(ids));
+      setSelectAll(true);
+    }
+  };
+
+  // 切换单行选择
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+    setSelectAll(newSet.size === invoices.length && invoices.length > 0);
+  };
+
+  // 退出批量模式
+  const exitBatchMode = () => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+    setSelectAll(false);
   };
 
   const typeMap: Record<string, string> = { input: '进项', output: '销项' };
   const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款', cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
   const totalPages = Math.ceil(total / pageSize);
+
+  const importColumns = [
+    { key: 'type', label: '发票类型', required: true },
+    { key: 'invoice_no', label: '发票号码', required: true },
+    { key: 'amount', label: '金额', required: true },
+    { key: 'tax_amount', label: '税额', required: false },
+    { key: 'total_amount', label: '总金额', required: false },
+    { key: 'invoice_date', label: '开票日期', required: true },
+    { key: 'supplier_name', label: '对方名称', required: false },
+    { key: 'project_name', label: '所属项目', required: false },
+    { key: 'purchase_no', label: '关联采购', required: false },
+    { key: 'status', label: '状态', required: false },
+    { key: 'remark', label: '备注', required: false },
+  ];
 
   return (
     <div>
@@ -211,6 +266,15 @@ export default function InvoicesPage() {
           </select>
         </div>
         
+        <div>
+          <label className="block text-sm text-gray-500 mb-1">交付状态</label>
+          <select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value)} className="px-3 py-2 border rounded-lg w-32">
+            <option value="all">全部</option>
+            <option value="delivered">已交付</option>
+            <option value="undelivered">未交付</option>
+          </select>
+        </div>
+        
         <button
           onClick={resetFilters}
           className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300"
@@ -219,12 +283,55 @@ export default function InvoicesPage() {
         </button>
       </div>
 
+      {/* 批量操作工具栏 */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {!batchMode ? (
+          <button
+            onClick={() => setBatchMode(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            📋 批量标记交付
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={handleBatchDeliver}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              ✅ 标记为已交付 ({selectedIds.size})
+            </button>
+            <button
+              onClick={handleBatchUndeliver}
+              className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+            >
+              ↩️ 取消标记 ({selectedIds.size})
+            </button>
+            <button
+              onClick={exitBatchMode}
+              className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500"
+            >
+              退出批量模式
+            </button>
+          </>
+        )}
+      </div>
+
       {loading ? <div className="text-center py-12">加载中...</div> : (
         <>
           <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="w-full min-w-[1000px]">
               <thead className="bg-gray-50">
                 <tr>
+                  {batchMode && (
+                    <th className="px-2 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left">发票类型</th>
                   <th className="px-4 py-3 text-left">发票号码</th>
                   <th className="px-4 py-3 text-right">金额</th>
@@ -235,12 +342,23 @@ export default function InvoicesPage() {
                   <th className="px-4 py-3 text-left">所属项目</th>
                   <th className="px-4 py-3 text-center">附件</th>
                   <th className="px-4 py-3 text-center">状态</th>
+                  <th className="px-4 py-3 text-center">交付状态</th>
                   <th className="px-4 py-3 text-center">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {invoices.map(i => (
                   <tr key={i.id} className="hover:bg-gray-50">
+                    {batchMode && (
+                      <td className="px-2 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(i.id)}
+                          onChange={() => toggleSelect(i.id)}
+                          className="w-4 h-4"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm">{typeMap[i.type] || i.type}</td>
                     <td className="px-4 py-3">
                       <Link to={`/invoices/${i.id}`} className="text-blue-600 hover:underline">
@@ -270,6 +388,15 @@ export default function InvoicesPage() {
                         {statusMap[i.status] || i.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {i.delivered_at ? (
+                        <span className="text-green-600 text-sm">
+                          {new Date(i.delivered_at).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="text-red-400 text-sm">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <div className="flex justify-center gap-2">
                         <Link to={`/invoices/${i.id}`} className="text-blue-600 text-sm whitespace-nowrap">查看</Link>
@@ -283,11 +410,9 @@ export default function InvoicesPage() {
               {total > 0 && (
                 <tfoot className="bg-gray-50 border-t">
                   <tr>
-                    <td colSpan={2} className="px-4 py-3 text-right font-medium">合计：</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalAmountSum)}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalTaxSum)}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatAmount(totalTotalSum)}</td>
-                    <td colSpan={6}></td>
+                    <td colSpan={batchMode ? 13 : 12} className="px-4 py-3 text-right font-medium">
+                      合计：{formatAmount(totalAmountSum)} / {formatAmount(totalTaxSum)} / {formatAmount(totalTotalSum)}
+                    </td>
                   </tr>
                 </tfoot>
               )}
