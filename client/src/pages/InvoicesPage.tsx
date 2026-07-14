@@ -16,10 +16,14 @@ export default function InvoicesPage() {
   const [type, setType] = useState('all');
   const [projectId, setProjectId] = useState('all');
   const [status, setStatus] = useState('all');
-  const [deliveryStatus, setDeliveryStatus] = useState('all'); // 新增
+  const [deliveryStatus, setDeliveryStatus] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
-  const [searchTimer, setSearchTimer] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
+  const [totalAmountSum, setTotalAmountSum] = useState(0);
+  const [totalTaxSum, setTotalTaxSum] = useState(0);
+  const [totalTotalSum, setTotalTotalSum] = useState(0);
   // 批量操作相关
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -37,6 +41,17 @@ export default function InvoicesPage() {
     loadProjects();
   }, []);
 
+  const resetFilters = () => {
+    setKeyword('');
+    setType('all');
+    setProjectId('all');
+    setStatus('all');
+    setDeliveryStatus('all');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  };
+
   const loadInvoices = async () => {
     setLoading(true);
     try {
@@ -53,9 +68,21 @@ export default function InvoicesPage() {
       if (type !== 'all') baseQuery = baseQuery.eq('type', type);
       if (projectId !== 'all') baseQuery = baseQuery.eq('project_id', projectId);
       if (status !== 'all') baseQuery = baseQuery.eq('status', status);
-      // 新增：交付状态筛选
+      if (dateFrom) baseQuery = baseQuery.gte('invoice_date', dateFrom);
+      if (dateTo) baseQuery = baseQuery.lte('invoice_date', dateTo);
       if (deliveryStatus === 'delivered') baseQuery = baseQuery.not('delivered_at', 'is', null);
       if (deliveryStatus === 'undelivered') baseQuery = baseQuery.is('delivered_at', null);
+
+      const { data: allData } = await baseQuery;
+      let sumAmount = 0, sumTax = 0, sumTotal = 0;
+      allData?.forEach(item => {
+        sumAmount += parseFloat(item.amount) || 0;
+        sumTax += parseFloat(item.tax_amount) || 0;
+        sumTotal += parseFloat(item.total_amount) || 0;
+      });
+      setTotalAmountSum(sumAmount);
+      setTotalTaxSum(sumTax);
+      setTotalTotalSum(sumTotal);
 
       const { count: totalCount } = await baseQuery;
       
@@ -65,7 +92,6 @@ export default function InvoicesPage() {
       
       setInvoices(pageData || []);
       setTotal(totalCount || 0);
-      // 退出批量模式时清空选择
       if (!batchMode) {
         setSelectedIds(new Set());
         setSelectAll(false);
@@ -77,12 +103,10 @@ export default function InvoicesPage() {
     }
   };
 
-  // 加载数据
   useEffect(() => {
     loadInvoices();
-  }, [page, type, projectId, status, keyword, deliveryStatus]);
+  }, [page, type, projectId, status, keyword, dateFrom, dateTo, deliveryStatus]);
 
-  // 删除函数
   const handleDelete = async (id: string, no: string) => {
     if (!confirm(`确定要删除发票 "${no}" 吗？`)) return;
     try {
@@ -93,7 +117,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // 批量标记交付
   const handleBatchDeliver = async () => {
     if (selectedIds.size === 0) {
       alert('请先选择要标记的发票');
@@ -117,7 +140,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // 批量取消标记
   const handleBatchUndeliver = async () => {
     if (selectedIds.size === 0) {
       alert('请先选择要取消标记的发票');
@@ -141,7 +163,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // 全选/取消全选
   const toggleSelectAll = () => {
     if (selectAll) {
       setSelectedIds(new Set());
@@ -153,7 +174,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // 切换单行选择
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -165,7 +185,6 @@ export default function InvoicesPage() {
     setSelectAll(newSet.size === invoices.length && invoices.length > 0);
   };
 
-  // 退出批量模式
   const exitBatchMode = () => {
     setBatchMode(false);
     setSelectedIds(new Set());
@@ -176,20 +195,6 @@ export default function InvoicesPage() {
   const statusMap: Record<string, string> = { unpaid: '未付款', paid: '已付款', partial: '部分付款', cancelled: '作废' };
   const formatAmount = (amount: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
   const totalPages = Math.ceil(total / pageSize);
-
-  const importColumns = [
-    { key: 'type', label: '发票类型', required: true },
-    { key: 'invoice_no', label: '发票号码', required: true },
-    { key: 'amount', label: '金额', required: true },
-    { key: 'tax_amount', label: '税额', required: false },
-    { key: 'total_amount', label: '总金额', required: false },
-    { key: 'invoice_date', label: '开票日期', required: true },
-    { key: 'supplier_name', label: '对方名称', required: false },
-    { key: 'project_name', label: '所属项目', required: false },
-    { key: 'purchase_no', label: '关联采购', required: false },
-    { key: 'status', label: '状态', required: false },
-    { key: 'remark', label: '备注', required: false },
-  ];
 
   return (
     <div>
