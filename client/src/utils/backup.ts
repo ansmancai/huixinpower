@@ -87,7 +87,7 @@ export async function backupAllData() {
       XLSX.utils.book_append_sheet(workbook, sheet, '采购');
     }
     
-    // 4. 收付款表
+    // 4. 收付款表 - 增加对方名称字段
     const { data: transactions } = await supabase.from('transactions').select('*');
     const transactionsFormatted = transactions?.map(t => ({
       日期: t.date,
@@ -99,6 +99,7 @@ export async function backupAllData() {
                 t.payment_method === 'alipay' ? '支付宝' : t.payment_method,
       关联项目: projectNameMap[t.project_id] || t.project_id,
       关联供应商: supplierNameMap[t.supplier_id] || t.supplier_id,
+      对方名称: t.type === 'payment' ? (supplierNameMap[t.supplier_id] || t.supplier_id) : (t.counterparty_name || ''),
       关联采购: purchaseNoMap[t.purchase_id] || t.purchase_id,
       备注: t.remark,
     }));
@@ -107,7 +108,7 @@ export async function backupAllData() {
       XLSX.utils.book_append_sheet(workbook, sheet, '收付款');
     }
     
-    // 5. 发票表
+    // 5. 发票表 - 增加交付状态字段
     const { data: invoices } = await supabase.from('invoices').select('*');
     const invoicesFormatted = invoices?.map(i => ({
       发票类型: i.type === 'input' ? '进项' : '销项',
@@ -116,10 +117,11 @@ export async function backupAllData() {
       税额: i.tax_amount,
       总金额: i.total_amount,
       开票日期: i.invoice_date,
-      对方名称: supplierNameMap[i.supplier_id] || i.supplier_id,
+      对方名称: supplierNameMap[i.supplier_id] || i.supplier_name || i.supplier_id,
       所属项目: projectNameMap[i.project_id] || i.project_id,
       关联采购: purchaseNoMap[i.purchase_id] || i.purchase_id,
       状态: i.status === 'paid' ? '已付款' : i.status === 'partial' ? '部分付款' : i.status === 'cancelled' ? '作废' : '未付款',
+      交付状态: i.delivered_at ? new Date(i.delivered_at).toLocaleDateString() : '未交付',
       备注: i.remark,
     }));
     if (invoicesFormatted?.length) {
@@ -226,6 +228,7 @@ export async function exportModuleData(
                   t.payment_method === 'alipay' ? '支付宝' : t.payment_method,
         关联项目: projectMap[t.project_id] || t.project_id,
         关联供应商: supplierMap[t.supplier_id] || t.supplier_id,
+        对方名称: t.type === 'payment' ? (supplierMap[t.supplier_id] || t.supplier_id) : (t.counterparty_name || ''),
         关联采购: purchaseMap[t.purchase_id] || t.purchase_id,
         备注: t.remark,
       })) || [];
@@ -244,10 +247,11 @@ export async function exportModuleData(
         税额: i.tax_amount,
         总金额: i.total_amount,
         开票日期: i.invoice_date,
-        对方名称: supplierMap[i.supplier_id] || i.supplier_id,
+        对方名称: supplierMap[i.supplier_id] || i.supplier_name || i.supplier_id,
         所属项目: projectMap[i.project_id] || i.project_id,
         关联采购: purchaseMap[i.purchase_id] || i.purchase_id,
         状态: i.status === 'paid' ? '已付款' : i.status === 'partial' ? '部分付款' : i.status === 'cancelled' ? '作废' : '未付款',
+        交付状态: i.delivered_at ? new Date(i.delivered_at).toLocaleDateString() : '未交付',
         备注: i.remark,
       })) || [];
     }

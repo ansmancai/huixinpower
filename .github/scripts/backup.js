@@ -3,7 +3,6 @@ import XLSX from 'xlsx';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
-// 状态/类型映射常量
 const PROJECT_STATUS_MAP = {
   ongoing: '进行中',
   completed: '已完成',
@@ -42,7 +41,6 @@ const INVOICE_STATUS_MAP = {
   cancelled: '作废',
 };
 
-// 通用 fetch 函数
 async function fetchTable(tableName) {
   const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?select=*`, {
     headers: {
@@ -59,14 +57,13 @@ async function fetchTable(tableName) {
 async function backup() {
   console.log('开始备份...', new Date().toLocaleString());
   
-  // 1. 获取所有需要关联的数据
+  // 获取所有需要关联的数据
   const [projects, suppliers, purchases] = await Promise.all([
     fetchTable('projects'),
     fetchTable('suppliers'),
     fetchTable('purchases'),
   ]);
   
-  // 构建映射表
   const projectNameMap = Object.fromEntries(projects.map(p => [p.id, p.name]));
   const supplierNameMap = Object.fromEntries(suppliers.map(s => [s.id, s.name]));
   const purchaseNoMap = Object.fromEntries(purchases.map(p => [p.id, p.purchase_no]));
@@ -139,6 +136,7 @@ async function backup() {
       '支付方式': TRANSACTION_PAYMENT_METHOD_MAP[t.payment_method] || t.payment_method,
       '关联项目': projectNameMap[t.project_id] || t.project_id || '-',
       '关联供应商': supplierNameMap[t.supplier_id] || t.supplier_id || '-',
+      '对方名称': t.type === 'payment' ? (supplierNameMap[t.supplier_id] || t.supplier_id) : (t.counterparty_name || '-'),
       '关联采购': purchaseNoMap[t.purchase_id] || t.purchase_id || '-',
       '备注': t.remark || '-',
     };
@@ -162,6 +160,7 @@ async function backup() {
     '所属项目': projectNameMap[i.project_id] || i.project_id || '-',
     '关联采购': purchaseNoMap[i.purchase_id] || i.purchase_id || '-',
     '状态': INVOICE_STATUS_MAP[i.status] || i.status,
+    '交付状态': i.delivered_at ? new Date(i.delivered_at).toLocaleDateString() : '未交付',
     '备注': i.remark || '-',
   }));
   if (invoicesFormatted.length) {
@@ -170,7 +169,6 @@ async function backup() {
   }
   console.log(`发票: ${invoicesFormatted.length} 条记录`);
   
-  // 生成 Excel 文件
   const fileName = `电力财务系统备份_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
   XLSX.writeFile(workbook, fileName);
   console.log(`备份完成：${fileName}`);
