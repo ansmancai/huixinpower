@@ -143,7 +143,7 @@ export default function SiteInspectionForm() {
             <option value="abnormal">⚠️ 异常（需持续观察）</option>
             <option value="need_repair">🔧 待维修（需安排维修）</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 mt-1">
             <span className="text-green-600">正常</span>：设备运行良好<br />
             <span className="text-yellow-600">异常</span>：发现异常但暂不需要维修<br />
             <span className="text-red-600">待维修</span>：发现故障或严重隐患，需安排维修
