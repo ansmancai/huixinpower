@@ -130,7 +130,7 @@ export default function SiteProjectsPage() {
           onChange={(e) => setKeyword(e.target.value)}
           className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <p className="text-xs text-gray-400 mt-1">输入后稍等 2 秒自动搜索</p>
+        <p className="text-xs text-gray-400 mt-1">输入后稍等自动搜索</p>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
