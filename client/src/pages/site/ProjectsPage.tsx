@@ -11,8 +11,8 @@ export default function SiteProjectsPage() {
   const [keyword, setKeyword] = useState('');
   const [searchTimer, setSearchTimer] = useState<any>(null);
 
-  const loadProjects = async () => {
-    setLoading(true);
+  const loadProjects = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       let query = supabase
         .from('projects')
@@ -50,20 +50,20 @@ export default function SiteProjectsPage() {
     } catch (error) {
       console.error('加载维保项目失败', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   // 首次加载
   useEffect(() => {
-    loadProjects();
+    loadProjects(true);
   }, []);
 
-  // 防抖搜索：用户停止输入 2000ms 后才执行搜索
+  // 防抖搜索：2000ms 延迟，搜索时不触发 loading 状态
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => {
-      loadProjects();
+      loadProjects(false);
     }, 2000);
     setSearchTimer(timer);
     return () => clearTimeout(timer);
@@ -130,7 +130,7 @@ export default function SiteProjectsPage() {
           onChange={(e) => setKeyword(e.target.value)}
           className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <p className="text-xs text-gray-400 mt-1">输入后稍等自动搜索</p>
+        <p className="text-xs text-gray-400 mt-1">输入后稍等 2 秒自动搜索</p>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
