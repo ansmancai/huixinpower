@@ -10,6 +10,7 @@ export default function SiteProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [inspections, setInspections] = useState<any[]>([]);
+  const [latestInspection, setLatestInspection] = useState<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -25,13 +26,18 @@ export default function SiteProjectDetailPage() {
         if (error) throw error;
         setProject(projectData);
 
-        // 获取巡检记录
+        // 获取巡检记录（不关联 users 表，避免类型不匹配导致查询失败）
         const { data: inspectionsData } = await supabase
           .from('service_inspections')
-          .select('*, users(name)')
+          .select('*')
           .eq('project_id', id)
           .order('inspection_date', { ascending: false });
         setInspections(inspectionsData || []);
+
+        // 设置最近一次巡检记录
+        if (inspectionsData && inspectionsData.length > 0) {
+          setLatestInspection(inspectionsData[0]);
+        }
 
       } catch (error) {
         console.error('加载项目详情失败', error);
@@ -66,6 +72,22 @@ export default function SiteProjectDetailPage() {
     return map[conclusion] || 'bg-gray-100';
   };
 
+  // 判断巡检是否逾期
+  const isOverdue = () => {
+    if (!latestInspection || !project) return true;
+    const lastDate = new Date(latestInspection.inspection_date);
+    const now = new Date();
+    
+    if (project.inspection_cycle === 'monthly') {
+      const diffDays = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays > 30;
+    } else if (project.inspection_cycle === 'quarterly') {
+      const diffDays = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays > 90;
+    }
+    return false;
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-gray-500">加载中...</div>;
   }
@@ -73,6 +95,8 @@ export default function SiteProjectDetailPage() {
   if (!project) {
     return <div className="text-center py-12 text-gray-500">项目不存在</div>;
   }
+
+  const overdue = isOverdue();
 
   return (
     <div>
@@ -126,6 +150,31 @@ export default function SiteProjectDetailPage() {
             <p className="text-sm text-gray-500">巡检周期</p>
             <p className="font-medium">{project.inspection_cycle === 'monthly' ? '每月' : project.inspection_cycle === 'quarterly' ? '每季度' : '-'}</p>
           </div>
+          <div>
+            <p className="text-sm text-gray-500">最近巡检</p>
+            <p className="font-medium">
+              {latestInspection ? (
+                <span className={overdue ? 'text-red-600 font-bold' : 'text-gray-700'}>
+                  {formatDate(latestInspection.inspection_date)}
+                  {overdue && <span className="ml-1 text-red-500">⚠️ 逾期</span>}
+                </span>
+              ) : (
+                <span className="text-red-500 font-bold">未巡检</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">最近结论</p>
+            <p className="font-medium">
+              {latestInspection ? (
+                <span className={getConclusionColor(latestInspection.conclusion)}>
+                  {getConclusionLabel(latestInspection.conclusion)}
+                </span>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </p>
+          </div>
         </div>
         {project.remark && (
           <div className="mt-4">
@@ -163,7 +212,7 @@ export default function SiteProjectDetailPage() {
                 {inspections.map((inv) => (
                   <tr key={inv.id} className="border-t">
                     <td className="px-4 py-2 text-sm">{formatDate(inv.inspection_date)}</td>
-                    <td className="px-4 py-2 text-sm">{inv.users?.name || '-'}</td>
+                    <td className="px-4 py-2 text-sm">{inv.inspector_id || '-'}</td>
                     <td className="px-4 py-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs ${getConclusionColor(inv.conclusion)}`}>
                         {getConclusionLabel(inv.conclusion)}
