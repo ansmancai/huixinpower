@@ -46,9 +46,58 @@ export default function SiteProjectDetailPage() {
     loadData();
   }, [id, navigate]);
 
+  // 判断是否可以编辑/删除
+  const canModifyInspection = (inspection: any) => {
+    if (!user) return false;
+    // 管理员和财务可以操作所有记录
+    if (user.role === 'admin' || user.role === 'finance') return true;
+    // 现场人员只能操作自己录入的、7天内的记录
+    if (user.role === 'site') {
+      if (inspection.inspector_id !== user.id) return false;
+      const createdDate = new Date(inspection.created_at);
+      const now = new Date();
+      const diffDays = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays <= 7;
+    }
+    return false;
+  };
+
+  // 删除巡检记录
+  const handleDeleteInspection = async (inspectionId: string) => {
+    if (!confirm('确定要删除这条巡检记录吗？')) return;
+    try {
+      const { error } = await supabase
+        .from('service_inspections')
+        .delete()
+        .eq('id', inspectionId);
+      if (error) throw error;
+      // 刷新数据
+      const { data: inspectionsData } = await supabase
+        .from('service_inspections')
+        .select('*')
+        .eq('project_id', id)
+        .order('inspection_date', { ascending: false });
+      setInspections(inspectionsData || []);
+      if (inspectionsData && inspectionsData.length > 0) {
+        setLatestInspection(inspectionsData[0]);
+      } else {
+        setLatestInspection(null);
+      }
+      alert('删除成功');
+    } catch (error: any) {
+      alert('删除失败: ' + error.message);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString();
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   };
 
   const getConclusionLabel = (conclusion: string) => {
@@ -114,7 +163,7 @@ export default function SiteProjectDetailPage() {
         </div>
       </div>
 
-      {/* 项目基本信息 - 只显示服务相关字段，不显示财务数据 */}
+      {/* 项目基本信息 - 只显示服务相关字段 */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">项目信息</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -190,21 +239,43 @@ export default function SiteProjectDetailPage() {
                   <th className="px-4 py-2 text-left text-sm">巡检人</th>
                   <th className="px-4 py-2 text-center text-sm">结论</th>
                   <th className="px-4 py-2 text-left text-sm">备注</th>
+                  <th className="px-4 py-2 text-center text-sm">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {inspections.map((inv) => (
-                  <tr key={inv.id} className="border-t">
-                    <td className="px-4 py-2 text-sm">{formatDate(inv.inspection_date)}</td>
-                    <td className="px-4 py-2 text-sm">{inv.inspector_id || '-'}</td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${getConclusionColor(inv.conclusion)}`}>
-                        {getConclusionLabel(inv.conclusion)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-sm max-w-[200px] truncate">{inv.remark || '-'}</td>
-                  </tr>
-                ))}
+                {inspections.map((inv) => {
+                  const canModify = canModifyInspection(inv);
+                  return (
+                    <tr key={inv.id} className="border-t">
+                      <td className="px-4 py-2 text-sm">{formatDate(inv.inspection_date)}</td>
+                      <td className="px-4 py-2 text-sm">{inv.inspector_id || '-'}</td>
+                      <td className="px-4 py-2 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs ${getConclusionColor(inv.conclusion)}`}>
+                          {getConclusionLabel(inv.conclusion)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm max-w-[200px] truncate">{inv.remark || '-'}</td>
+                      <td className="px-4 py-2 text-center">
+                        {canModify && (
+                          <div className="flex justify-center gap-2">
+                            <Link
+                              to={`/site/projects/${id}/inspection/${inv.id}/edit`}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              编辑
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteInspection(inv.id)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

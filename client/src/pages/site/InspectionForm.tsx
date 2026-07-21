@@ -4,11 +4,12 @@ import { supabase } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 
 export default function SiteInspectionForm() {
-  const { id } = useParams<{ id: string }>();
+  const { id, inspectionId } = useParams<{ id: string; inspectionId: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [project, setProject] = useState<any>(null);
+  const [isEdit, setIsEdit] = useState(false);
   const [formData, setFormData] = useState({
     inspection_date: new Date().toISOString().split('T')[0],
     conclusion: 'normal',
@@ -16,22 +17,44 @@ export default function SiteInspectionForm() {
   });
 
   useEffect(() => {
-    const loadProject = async () => {
+    const loadData = async () => {
       if (!id) return;
-      const { data, error } = await supabase
+      
+      // 加载项目信息
+      const { data: projectData, error: projectError } = await supabase
         .from('projects')
         .select('name, code')
         .eq('id', id)
         .single();
-      if (error) {
-        console.error('加载项目失败', error);
+      if (projectError) {
+        console.error('加载项目失败', projectError);
         navigate('/site/projects');
         return;
       }
-      setProject(data);
+      setProject(projectData);
+
+      // 如果是编辑模式，加载巡检记录
+      if (inspectionId) {
+        setIsEdit(true);
+        const { data: inspectionData, error } = await supabase
+          .from('service_inspections')
+          .select('*')
+          .eq('id', inspectionId)
+          .single();
+        if (error) {
+          console.error('加载巡检记录失败', error);
+          navigate(`/site/projects/${id}`);
+          return;
+        }
+        setFormData({
+          inspection_date: inspectionData.inspection_date || '',
+          conclusion: inspectionData.conclusion || 'normal',
+          remark: inspectionData.remark || '',
+        });
+      }
     };
-    loadProject();
-  }, [id, navigate]);
+    loadData();
+  }, [id, inspectionId, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,9 +70,25 @@ export default function SiteInspectionForm() {
         remark: formData.remark || null,
       };
 
-      const { error } = await supabase
-        .from('service_inspections')
-        .insert([submitData]);
+      let error;
+      if (isEdit && inspectionId) {
+        // 编辑：只更新部分字段，保留 inspector_id 不变
+        const { error: updateError } = await supabase
+          .from('service_inspections')
+          .update({
+            inspection_date: formData.inspection_date,
+            conclusion: formData.conclusion,
+            remark: formData.remark || null,
+          })
+          .eq('id', inspectionId);
+        error = updateError;
+      } else {
+        // 新建
+        const { error: insertError } = await supabase
+          .from('service_inspections')
+          .insert([submitData]);
+        error = insertError;
+      }
 
       if (error) throw error;
 
@@ -73,7 +112,9 @@ export default function SiteInspectionForm() {
           <Link to={`/site/projects/${id}`} className="text-blue-600 hover:underline mb-2 inline-block">
             ← 返回项目详情
           </Link>
-          <h1 className="text-2xl font-bold text-gray-800">新增巡检记录</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {isEdit ? '编辑巡检记录' : '新增巡检记录'}
+          </h1>
           <p className="text-gray-500">{project.name}（{project.code}）</p>
         </div>
       </div>
@@ -126,7 +167,7 @@ export default function SiteInspectionForm() {
             disabled={loading}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? '保存中...' : '保存巡检记录'}
+            {loading ? '保存中...' : isEdit ? '更新记录' : '保存巡检记录'}
           </button>
           <button
             type="button"

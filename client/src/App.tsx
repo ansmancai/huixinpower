@@ -70,6 +70,7 @@ function App() {
         <Route path="projects" element={<SiteProjectsPage />} />
         <Route path="projects/:id" element={<SiteProjectDetailPage />} />
         <Route path="projects/:id/inspection/new" element={<SiteInspectionForm />} />
+        <Route path="projects/:id/inspection/:inspectionId/edit" element={<SiteInspectionForm />} />
       </Route>
 
       {/* 主应用路由（admin / finance / boss / viewer） */}
