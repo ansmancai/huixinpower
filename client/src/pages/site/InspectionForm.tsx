@@ -65,7 +65,7 @@ export default function SiteInspectionForm() {
       const submitData = {
         project_id: id,
         inspection_date: formData.inspection_date,
-        inspector_id: user.id,
+        inspector_id: user.name,
         conclusion: formData.conclusion,
         remark: formData.remark || null,
       };
