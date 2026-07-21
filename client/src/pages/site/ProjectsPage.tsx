@@ -59,12 +59,12 @@ export default function SiteProjectsPage() {
     loadProjects();
   }, []);
 
-  // 防抖搜索：用户停止输入 300ms 后才执行搜索
+  // 防抖搜索：用户停止输入 2000ms 后才执行搜索
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => {
       loadProjects();
-    }, 300);
+    }, 2000);
     setSearchTimer(timer);
     return () => clearTimeout(timer);
   }, [keyword]);
