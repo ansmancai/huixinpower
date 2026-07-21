@@ -12,7 +12,7 @@ export default function ProjectDetailPage() {
   const [relatedPurchases, setRelatedPurchases] = useState<any[]>([]);
   const [relatedTransactions, setRelatedTransactions] = useState<any[]>([]);
   const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
-  const [inspections, setInspections] = useState<any[]>([]); // 新增：巡检记录
+  const [inspections, setInspections] = useState<any[]>([]); // 巡检记录
   const [stats, setStats] = useState({
     totalPurchases: 0,
     totalPaid: 0,
@@ -22,6 +22,7 @@ export default function ProjectDetailPage() {
   });
 
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
+  const isService = project?.project_type === 'service';
 
   const paymentMethodMap: Record<string, string> = {
     bank: '银行转账',
@@ -73,11 +74,11 @@ export default function ProjectDetailPage() {
           .order('invoice_date', { ascending: false });
         setRelatedInvoices(invoicesData || []);
 
-        // 新增：加载巡检记录（仅维保项目）
+        // 加载巡检记录（维保项目才有）
         if (projectData?.project_type === 'service') {
           const { data: inspectionsData } = await supabase
             .from('service_inspections')
-            .select('*, users(name)')
+            .select('*')
             .eq('project_id', id)
             .order('inspection_date', { ascending: false });
           setInspections(inspectionsData || []);
@@ -149,7 +150,6 @@ export default function ProjectDetailPage() {
   const unpaidToSupplier = stats.totalPurchases - stats.totalPaid;
   const uninvoicedFromSupplier = stats.totalPurchases - stats.totalInvoicedFromSupplier;
   const invoicedUnpaidToSupplier = stats.totalInvoicedFromSupplier - stats.totalPaid;
-  const isService = project.project_type === 'service';
 
   return (
     <div>
@@ -211,27 +211,16 @@ export default function ProjectDetailPage() {
             <p className="text-sm text-gray-500">合同金额</p>
             <p className="font-medium">{formatAmount(contractAmount)}</p>
           </div>
-          {!isService ? (
+          <div>
+            <p className="text-sm text-gray-500">开工日期</p>
+            <p className="font-medium">{formatDate(project.start_date)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">完工日期</p>
+            <p className="font-medium">{formatDate(project.end_date)}</p>
+          </div>
+          {isService && (
             <>
-              <div>
-                <p className="text-sm text-gray-500">开工日期</p>
-                <p className="font-medium">{formatDate(project.start_date)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">完工日期</p>
-                <p className="font-medium">{formatDate(project.end_date)}</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <p className="text-sm text-gray-500">服务起始日期</p>
-                <p className="font-medium">{formatDate(project.start_date)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">服务结束日期</p>
-                <p className="font-medium">{formatDate(project.end_date)}</p>
-              </div>
               <div>
                 <p className="text-sm text-gray-500">巡检周期</p>
                 <p className="font-medium">{project.inspection_cycle === 'monthly' ? '每月' : project.inspection_cycle === 'quarterly' ? '每季度' : '-'}</p>
@@ -247,270 +236,262 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* 财务统计 - 左右分栏（仅工程项目显示） */}
-      {!isService && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-md p-5">
-            <h3 className="text-md font-semibold text-blue-600 mb-3 flex items-center gap-2">
-              <span>🏢</span> 甲方（客户）
-            </h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">合同金额</span>
-                <span className="font-medium">{formatAmount(contractAmount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已收款</span>
-                <span className="font-medium text-green-600">{formatAmount(stats.totalReceipt)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">未收款</span>
-                <span className="font-medium text-red-600">{formatAmount(unpaidFromClient)}</span>
-              </div>
-              <div className="border-t my-2"></div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已开票（销项）</span>
-                <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoiced)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">未开票</span>
-                <span className="font-medium text-orange-600">{formatAmount(uninvoicedToClient)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已开票未收款</span>
-                <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidFromClient)}</span>
-              </div>
+      {/* 财务统计 - 左右分栏（所有项目都显示） */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* 甲方（客户）侧 */}
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <h3 className="text-md font-semibold text-blue-600 mb-3 flex items-center gap-2">
+            <span>🏢</span> 甲方（客户）
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">合同金额</span>
+              <span className="font-medium">{formatAmount(contractAmount)}</span>
             </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-5">
-            <h3 className="text-md font-semibold text-red-600 mb-3 flex items-center gap-2">
-              <span>🏭</span> 供应商
-            </h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">已采购总额</span>
-                <span className="font-medium text-purple-600">{formatAmount(stats.totalPurchases)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已付款</span>
-                <span className="font-medium text-green-600">{formatAmount(stats.totalPaid)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">未付款</span>
-                <span className="font-medium text-red-600">{formatAmount(unpaidToSupplier)}</span>
-              </div>
-              <div className="border-t my-2"></div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已收票（进项）</span>
-                <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoicedFromSupplier)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">未收票</span>
-                <span className="font-medium text-orange-600">{formatAmount(uninvoicedFromSupplier)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">已收票未付款</span>
-                <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidToSupplier)}</span>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收款</span>
+              <span className="font-medium text-green-600">{formatAmount(stats.totalReceipt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未收款</span>
+              <span className="font-medium text-red-600">{formatAmount(unpaidFromClient)}</span>
+            </div>
+            <div className="border-t my-2"></div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已开票（销项）</span>
+              <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoiced)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未开票</span>
+              <span className="font-medium text-orange-600">{formatAmount(uninvoicedToClient)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已开票未收款</span>
+              <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidFromClient)}</span>
             </div>
           </div>
         </div>
-      )}
 
-      {/* 关联操作按钮（仅工程项目显示采购和收付款新建入口） */}
-      {!isService && (
-        <div className="flex gap-3 mb-6">
-          <Link
-            to={`/purchases/new?projectId=${id}`}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
+        {/* 供应商侧 */}
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <h3 className="text-md font-semibold text-red-600 mb-3 flex items-center gap-2">
+            <span>🏭</span> 供应商
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">已采购总额</span>
+              <span className="font-medium text-purple-600">{formatAmount(stats.totalPurchases)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已付款</span>
+              <span className="font-medium text-green-600">{formatAmount(stats.totalPaid)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未付款</span>
+              <span className="font-medium text-red-600">{formatAmount(unpaidToSupplier)}</span>
+            </div>
+            <div className="border-t my-2"></div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收票（进项）</span>
+              <span className="font-medium text-blue-600">{formatAmount(stats.totalInvoicedFromSupplier)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">未收票</span>
+              <span className="font-medium text-orange-600">{formatAmount(uninvoicedFromSupplier)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">已收票未付款</span>
+              <span className="font-medium text-yellow-600">{formatAmount(invoicedUnpaidToSupplier)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 关联操作按钮 */}
+      <div className="flex gap-3 mb-6">
+        <Link
+          to={`/purchases/new?projectId=${id}`}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+        >
+          + 新建采购
+        </Link>
+        <Link
+          to={`/transactions/new?projectId=${id}`}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+        >
+          + 新建收付款
+        </Link>
+      </div>
+
+      {/* 采购记录 */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">采购记录</h2>
+          <Link to={`/purchases/new?projectId=${id}`} className="text-blue-600 text-sm hover:underline">
             + 新建采购
           </Link>
-          <Link
-            to={`/transactions/new?projectId=${id}`}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            + 新建收付款
-          </Link>
         </div>
-      )}
-
-      {/* 采购记录（仅工程项目显示） */}
-      {!isService && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">采购记录</h2>
-            <Link to={`/purchases/new?projectId=${id}`} className="text-blue-600 text-sm hover:underline">
-              + 新建采购
-            </Link>
-          </div>
-          {relatedPurchases.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">暂无采购记录</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-sm">日期</th>
-                    <th className="px-4 py-2 text-left text-sm">采购内容</th>
-                    <th className="px-4 py-2 text-left text-sm">供应商</th>
-                    <th className="px-4 py-2 text-right text-sm">金额</th>
-                    <th className="px-4 py-2 text-right text-sm">未付款金额</th>
-                    <th className="px-4 py-2 text-center text-sm">物流状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {relatedPurchases.map((p) => {
-                    const paidForPurchase = relatedTransactions
-                      .filter(t => t.purchase_id === p.id && t.type === 'payment')
-                      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-                    const unpaidAmount = parseFloat(p.amount) - paidForPurchase;
-                    return (
-                      <tr key={p.id} className="border-t">
-                        <td className="px-4 py-2 text-sm">{new Date(p.purchase_date).toLocaleDateString()}</td>
-                        <td className="px-4 py-2">
-                          <Link to={`/purchases/${p.id}`} className="text-blue-600 hover:underline">
-                            {p.content}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-2 text-sm">{p.suppliers?.name || '-'}</td>
-                        <td className="px-4 py-2 text-right">{formatAmount(parseFloat(p.amount))}</td>
-                        <td className="px-4 py-2 text-right text-red-600">{formatAmount(unpaidAmount)}</td>
-                        <td className="px-4 py-2 text-center">
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100">
-                            {p.logistics_status === 'arrived' ? '已到货' : p.logistics_status === 'ordered' ? '已下单' : '待发货'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 收付款记录（仅工程项目显示） */}
-      {!isService && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">收付款记录</h2>
-          {relatedTransactions.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">暂无交易记录</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-sm">日期</th>
-                    <th className="px-4 py-2 text-left text-sm">类型</th>
-                    <th className="px-4 py-2 text-right text-sm">金额</th>
-                    <th className="px-4 py-2 text-left text-sm">支付方式</th>
-                    <th className="px-4 py-2 text-left text-sm">对方名称</th>
-                    <th className="px-4 py-2 text-left text-sm">备注</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {relatedTransactions.map((t) => {
-                    const counterpartyName = t.type === 'payment' 
-                      ? t.suppliers?.name || '-' 
-                      : t.counterparty_name || '-';
-                    return (
-                      <tr key={t.id} className="border-t hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm">
-                          <Link to={`/transactions/${t.id}`} className="text-blue-600 hover:underline">
-                            {new Date(t.date).toLocaleDateString()}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                            {t.type === 'receipt' ? '收款' : '付款'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>
-                            {t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {paymentMethodMap[t.payment_method] || t.payment_method}
-                        </td>
-                        <td className="px-4 py-2 text-sm">{counterpartyName}</td>
-                        <td className="px-4 py-2 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 发票记录（仅工程项目显示） */}
-      {!isService && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-semibold mb-4">发票记录</h2>
-          {relatedInvoices.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">暂无发票记录</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-sm">发票类型</th>
-                    <th className="px-4 py-2 text-left text-sm">发票号码</th>
-                    <th className="px-4 py-2 text-right text-sm">金额</th>
-                    <th className="px-4 py-2 text-left text-sm">开票日期</th>
-                    <th className="px-4 py-2 text-left text-sm">对方名称</th>
-                    <th className="px-4 py-2 text-center text-sm">状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {relatedInvoices.map((inv) => (
-                    <tr key={inv.id} className="border-t">
-                      <td className="px-4 py-2 text-sm">
-                        {inv.type === 'input' ? '进项' : '销项'}
-                      </td>
+        {relatedPurchases.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">暂无采购记录</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm">日期</th>
+                  <th className="px-4 py-2 text-left text-sm">采购内容</th>
+                  <th className="px-4 py-2 text-left text-sm">供应商</th>
+                  <th className="px-4 py-2 text-right text-sm">金额</th>
+                  <th className="px-4 py-2 text-right text-sm">未付款金额</th>
+                  <th className="px-4 py-2 text-center text-sm">物流状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatedPurchases.map((p) => {
+                  const paidForPurchase = relatedTransactions
+                    .filter(t => t.purchase_id === p.id && t.type === 'payment')
+                    .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
+                  const unpaidAmount = parseFloat(p.amount) - paidForPurchase;
+                  return (
+                    <tr key={p.id} className="border-t">
+                      <td className="px-4 py-2 text-sm">{new Date(p.purchase_date).toLocaleDateString()}</td>
                       <td className="px-4 py-2">
-                        <Link to={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
-                          {inv.invoice_no}
+                        <Link to={`/purchases/${p.id}`} className="text-blue-600 hover:underline">
+                          {p.content}
                         </Link>
                       </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatAmount(parseFloat(inv.total_amount || inv.amount))}
-                      </td>
-                      <td className="px-4 py-2 text-sm">
-                        {new Date(inv.invoice_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-2 text-sm">
-                        {inv.supplier_name || '-'}
-                      </td>
+                      <td className="px-4 py-2 text-sm">{p.suppliers?.name || '-'}</td>
+                      <td className="px-4 py-2 text-right">{formatAmount(parseFloat(p.amount))}</td>
+                      <td className="px-4 py-2 text-right text-red-600">{formatAmount(unpaidAmount)}</td>
                       <td className="px-4 py-2 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          inv.status === 'paid' ? 'bg-green-100 text-green-800' :
-                          inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                          inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {inv.status === 'paid' ? '已付款' : 
-                           inv.status === 'partial' ? '部分付款' :
-                           inv.status === 'cancelled' ? '作废' : '未付款'}
+                        <span className="px-2 py-1 rounded-full text-xs bg-blue-100">
+                          {p.logistics_status === 'arrived' ? '已到货' : p.logistics_status === 'ordered' ? '已下单' : '待发货'}
                         </span>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 收付款记录 */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">收付款记录</h2>
+        {relatedTransactions.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">暂无交易记录</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm">日期</th>
+                  <th className="px-4 py-2 text-left text-sm">类型</th>
+                  <th className="px-4 py-2 text-right text-sm">金额</th>
+                  <th className="px-4 py-2 text-left text-sm">支付方式</th>
+                  <th className="px-4 py-2 text-left text-sm">对方名称</th>
+                  <th className="px-4 py-2 text-left text-sm">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatedTransactions.map((t) => {
+                  const counterpartyName = t.type === 'payment' 
+                    ? t.suppliers?.name || '-' 
+                    : t.counterparty_name || '-';
+                  return (
+                    <tr key={t.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm">
+                        <Link to={`/transactions/${t.id}`} className="text-blue-600 hover:underline">
+                          {new Date(t.date).toLocaleDateString()}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={t.type === 'receipt' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                          {t.type === 'receipt' ? '收款' : '付款'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <span className={t.type === 'receipt' ? 'text-green-600' : 'text-red-600'}>
+                          {t.type === 'receipt' ? '+' : '-'}{formatAmount(Math.abs(parseFloat(t.amount)))}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        {paymentMethodMap[t.payment_method] || t.payment_method}
+                      </td>
+                      <td className="px-4 py-2 text-sm">{counterpartyName}</td>
+                      <td className="px-4 py-2 text-sm max-w-[200px] truncate">{t.remark || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 发票记录 */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-lg font-semibold mb-4">发票记录</h2>
+        {relatedInvoices.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">暂无发票记录</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm">发票类型</th>
+                  <th className="px-4 py-2 text-left text-sm">发票号码</th>
+                  <th className="px-4 py-2 text-right text-sm">金额</th>
+                  <th className="px-4 py-2 text-left text-sm">开票日期</th>
+                  <th className="px-4 py-2 text-left text-sm">对方名称</th>
+                  <th className="px-4 py-2 text-center text-sm">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatedInvoices.map((inv) => (
+                  <tr key={inv.id} className="border-t">
+                    <td className="px-4 py-2 text-sm">
+                      {inv.type === 'input' ? '进项' : '销项'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <Link to={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
+                        {inv.invoice_no}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {formatAmount(parseFloat(inv.total_amount || inv.amount))}
+                    </td>
+                    <td className="px-4 py-2 text-sm">
+                      {new Date(inv.invoice_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2 text-sm">
+                      {inv.supplier_name || '-'}
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
+                        inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {inv.status === 'paid' ? '已付款' : 
+                         inv.status === 'partial' ? '部分付款' :
+                         inv.status === 'cancelled' ? '作废' : '未付款'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* 巡检记录（仅维保项目显示） */}
       {isService && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">巡检记录</h2>
             <Link
@@ -537,7 +518,7 @@ export default function ProjectDetailPage() {
                   {inspections.map((inv) => (
                     <tr key={inv.id} className="border-t">
                       <td className="px-4 py-2 text-sm">{formatDate(inv.inspection_date)}</td>
-                      <td className="px-4 py-2 text-sm">{inv.users?.name || '-'}</td>
+                      <td className="px-4 py-2 text-sm">{inv.inspector_name || inv.inspector_id || '-'}</td>
                       <td className="px-4 py-2 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           inv.conclusion === 'normal' ? 'bg-green-100 text-green-800' :
