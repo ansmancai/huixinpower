@@ -59,12 +59,12 @@ export default function SiteProjectsPage() {
     loadProjects(true);
   }, []);
 
-  // 防抖搜索：2000ms 延迟，搜索时不触发 loading 状态
+  // 防抖搜索：1000ms 延迟，搜索时不触发 loading 状态
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => {
       loadProjects(false);
-    }, 2000);
+    }, 1000);
     setSearchTimer(timer);
     return () => clearTimeout(timer);
   }, [keyword]);
