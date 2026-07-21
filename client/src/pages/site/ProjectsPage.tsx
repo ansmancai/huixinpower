@@ -11,7 +11,6 @@ export default function SiteProjectsPage() {
   const [keyword, setKeyword] = useState('');
   const [searchTimer, setSearchTimer] = useState<any>(null);
 
-  // 加载维保项目
   const loadProjects = async () => {
     setLoading(true);
     try {
@@ -27,7 +26,6 @@ export default function SiteProjectsPage() {
       const { data, error } = await query.order('code', { ascending: false });
       if (error) throw error;
       
-      // 加载每个项目的最近一次巡检记录
       const projectIds = data?.map(p => p.id) || [];
       if (projectIds.length > 0) {
         const { data: inspections } = await supabase
@@ -36,7 +34,6 @@ export default function SiteProjectsPage() {
           .in('project_id', projectIds)
           .order('inspection_date', { ascending: false });
         
-        // 构建最近巡检记录映射
         const latestInspectionMap: Record<string, any> = {};
         inspections?.forEach(ins => {
           if (!latestInspectionMap[ins.project_id]) {
@@ -57,38 +54,36 @@ export default function SiteProjectsPage() {
     }
   };
 
+  // 首次加载
   useEffect(() => {
     loadProjects();
   }, []);
 
+  // 防抖搜索：用户停止输入 1000ms 后才执行搜索
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => {
       loadProjects();
-    }, 300);
+    }, 1000);
     setSearchTimer(timer);
     return () => clearTimeout(timer);
   }, [keyword]);
 
-  // 判断巡检是否逾期
   const isOverdue = (project: any) => {
     if (!project.latestInspection) return true;
     const lastDate = new Date(project.latestInspection.inspection_date);
     const now = new Date();
     
     if (project.inspection_cycle === 'monthly') {
-      // 超过30天未巡检视为逾期
       const diffDays = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
       return diffDays > 30;
     } else if (project.inspection_cycle === 'quarterly') {
-      // 超过90天未巡检视为逾期
       const diffDays = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
       return diffDays > 90;
     }
     return false;
   };
 
-  // 判断项目状态
   const getProjectStatus = (project: any) => {
     const now = new Date();
     const start = project.start_date ? new Date(project.start_date) : null;
@@ -135,6 +130,7 @@ export default function SiteProjectsPage() {
           onChange={(e) => setKeyword(e.target.value)}
           className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <p className="text-xs text-gray-400 mt-1">输入后稍等 1 秒自动搜索</p>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
