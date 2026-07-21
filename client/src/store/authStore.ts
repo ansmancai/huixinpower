@@ -5,7 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'finance' | 'boss' | 'viewer';
+  role: 'admin' | 'finance' | 'boss' | 'viewer' | 'site';  // 增加 'site'
   avatar?: string;
 }
 

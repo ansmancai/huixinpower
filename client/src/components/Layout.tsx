@@ -13,6 +13,8 @@ const navItems = [
   { path: '/invoices', label: '发票管理', icon: '📄', roles: ['admin', 'finance', 'boss', 'viewer'] },
   { path: '/users', label: '账号管理', icon: '👥', roles: ['admin'] },
   { path: '/logs', label: '操作日志', icon: '📋', roles: ['admin'] },
+  // 维保管理菜单（所有角色可见，但内容受权限控制）
+  { path: '/site/projects', label: '维保管理', icon: '🔧', roles: ['admin', 'finance', 'boss', 'viewer', 'site'] },
 ];
 
 export default function Layout() {
@@ -61,6 +63,7 @@ export default function Layout() {
     finance: '财务',
     boss: '老板',
     viewer: '浏览人',
+    site: '现场人员',
   }[user?.role || 'viewer'];
 
   const visibleNavItems = navItems.filter(item => 
@@ -78,14 +81,14 @@ export default function Layout() {
             </div>
             <div>
               <h1 className="text-white text-lg font-semibold tracking-wide">汇信电力</h1>
-              <p className="text-gray-400 text-s">财务管理系统（菜菜新版）</p>
+              <p className="text-gray-400 text-xs">财务管理系统（菜菜新版）</p>
             </div>
           </div>
         </div>
         
         <nav className="p-4 space-y-1">
           {visibleNavItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             return (
               <Link
                 key={item.path}

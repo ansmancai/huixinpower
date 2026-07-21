@@ -11,6 +11,7 @@ export default function ProjectFormPage() {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
+    project_type: 'engineering', // 新增：工程 / 维保
     status: 'ongoing',
     client: '',
     contractor: '汇信电力',
@@ -18,42 +19,45 @@ export default function ProjectFormPage() {
     contract_amount: '',
     start_date: '',
     end_date: '',
+    inspection_cycle: '', // 维保项目特有：巡检周期
     remark: '',
   });
 
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
+  const isService = formData.project_type === 'service';
 
   // 自动生成项目编号
   useEffect(() => {
     const generateProjectCode = async () => {
       const currentYear = new Date().getFullYear().toString();
-      // 获取今年最大的编号
+      // 根据项目类型决定编号前缀
+      const prefix = formData.project_type === 'service' ? 'WB' : 'HX';
       const { data } = await supabase
         .from('projects')
         .select('code')
-        .like('code', `HX${currentYear}%`)
+        .like('code', `${prefix}${currentYear}%`)
         .order('code', { ascending: false })
         .limit(1);
       
       if (data && data.length > 0) {
         const lastCode = data[0].code;
-        const match = lastCode.match(/HX(\d{4})(\d{3})/);
+        const match = lastCode.match(new RegExp(`${prefix}(\\d{4})(\\d{3})`));
         if (match && match[1] === currentYear) {
           const nextNum = parseInt(match[2]) + 1;
-          setFormData(prev => ({ ...prev, code: `HX${currentYear}${nextNum.toString().padStart(3, '0')}` }));
+          setFormData(prev => ({ ...prev, code: `${prefix}${currentYear}${nextNum.toString().padStart(3, '0')}` }));
         } else {
-          setFormData(prev => ({ ...prev, code: `HX${currentYear}001` }));
+          setFormData(prev => ({ ...prev, code: `${prefix}${currentYear}001` }));
         }
       } else {
-        setFormData(prev => ({ ...prev, code: `HX${currentYear}001` }));
+        setFormData(prev => ({ ...prev, code: `${prefix}${currentYear}001` }));
       }
     };
     
     if (!isEdit) {
       generateProjectCode();
     }
-  }, [isEdit]);
+  }, [isEdit, formData.project_type]);
 
   useEffect(() => {
     if (isEdit && canEdit) {
@@ -69,6 +73,7 @@ export default function ProjectFormPage() {
             setFormData({
               name: data.name || '',
               code: data.code || '',
+              project_type: data.project_type || 'engineering',
               status: data.status || 'ongoing',
               client: data.client || '',
               contractor: data.contractor || '汇信电力',
@@ -76,6 +81,7 @@ export default function ProjectFormPage() {
               contract_amount: data.contract_amount || '',
               start_date: data.start_date || '',
               end_date: data.end_date || '',
+              inspection_cycle: data.inspection_cycle || '',
               remark: data.remark || '',
             });
           }
@@ -97,6 +103,7 @@ export default function ProjectFormPage() {
       const submitData: any = {
         name: formData.name,
         code: formData.code,
+        project_type: formData.project_type,
         status: formData.status,
         client: formData.client || null,
         contractor: formData.contractor || '汇信电力',
@@ -104,6 +111,7 @@ export default function ProjectFormPage() {
         contract_amount: formData.contract_amount === '' ? null : parseFloat(formData.contract_amount),
         start_date: formData.start_date === '' ? null : formData.start_date,
         end_date: formData.end_date === '' ? null : formData.end_date,
+        inspection_cycle: formData.inspection_cycle || null,
         remark: formData.remark || null,
         updated_at: new Date().toISOString(),
       };
@@ -163,8 +171,30 @@ export default function ProjectFormPage() {
               className="w-full px-3 py-2 border rounded-lg"
             />
             {!isEdit && (
-              <p className="text-xs text-gray-500 mt-1">系统自动推荐（HX+年份+3位流水号），可手动修改</p>
+              <p className="text-xs text-gray-500 mt-1">
+                系统自动推荐（{formData.project_type === 'service' ? 'WB' : 'HX'}+年份+3位流水号），可手动修改
+              </p>
             )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">项目类型 *</label>
+            <select
+              required
+              value={formData.project_type}
+              onChange={(e) => {
+                const newType = e.target.value;
+                setFormData(prev => ({ 
+                  ...prev, 
+                  project_type: newType,
+                  // 切换类型时重置相关字段
+                  inspection_cycle: newType === 'service' ? prev.inspection_cycle : '',
+                }));
+              }}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="engineering">工程项目</option>
+              <option value="service">维保项目</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">状态</label>
@@ -217,24 +247,70 @@ export default function ProjectFormPage() {
               className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">开工日期</label>
-            <input
-              type="date"
-              value={formData.start_date}
-              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">完工日期</label>
-            <input
-              type="date"
-              value={formData.end_date}
-              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-          </div>
+          
+          {/* 工程项目特有字段 */}
+          {!isService && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">开工日期</label>
+                <input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">完工日期</label>
+                <input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+            </>
+          )}
+          
+          {/* 维保项目特有字段 */}
+          {isService && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">服务起始日期 *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">服务结束日期 *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">巡检周期 *</label>
+                <select
+                  required
+                  value={formData.inspection_cycle}
+                  onChange={(e) => setFormData({ ...formData, inspection_cycle: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">请选择</option>
+                  <option value="monthly">每月</option>
+                  <option value="quarterly">每季度</option>
+                </select>
+              </div>
+            </>
+          )}
+          
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">备注</label>
             <textarea

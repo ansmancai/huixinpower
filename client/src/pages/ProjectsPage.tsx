@@ -12,6 +12,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('all');
+  const [projectType, setProjectType] = useState('all'); // 新增：项目类型筛选
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
 
@@ -31,51 +32,51 @@ export default function ProjectsPage() {
       let query = supabase.from('projects').select('*');
       
       if (keyword) {
-  query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%,client.ilike.%${keyword}%`);
-
+        query = query.or(`name.ilike.%${keyword}%,code.ilike.%${keyword}%,client.ilike.%${keyword}%`);
       }
       if (status && status !== 'all') {
         query = query.eq('status', status);
+      }
+      // 新增：项目类型筛选
+      if (projectType && projectType !== 'all') {
+        query = query.eq('project_type', projectType);
       }
       
       const { data, error } = await query.order('code', { ascending: false });
       if (error) throw error;
       
       // 获取关联的收付款和发票数据
-      // 获取关联的收付款和发票数据
-const projectIds = data?.map(p => p.id) || [];
-if (projectIds.length > 0) {
-  // 收款（从客户收到）
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('project_id, amount, type')
-    .in('project_id', projectIds);
-  
-  // 发票：只统计销项（开给甲方的）
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('project_id, total_amount')
-    .eq('type', 'output')  // 👈 只取销项发票
-    .in('project_id', projectIds);
-  
-  const receiptMap: Record<string, number> = {};
-  const invoiceMap: Record<string, number> = {};
-  
-  transactions?.forEach(t => {
-    if (t.type === 'receipt') {
-      receiptMap[t.project_id] = (receiptMap[t.project_id] || 0) + parseFloat(t.amount);
-    }
-  });
-  
-  invoices?.forEach(i => {
-    invoiceMap[i.project_id] = (invoiceMap[i.project_id] || 0) + parseFloat(i.total_amount);
-  });
-  
-  data?.forEach(p => {
-    p.receivedAmount = receiptMap[p.id] || 0;
-    p.invoicedAmount = invoiceMap[p.id] || 0;  // 销项发票金额
-  });
-}
+      const projectIds = data?.map(p => p.id) || [];
+      if (projectIds.length > 0) {
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('project_id, amount, type')
+          .in('project_id', projectIds);
+        
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('project_id, total_amount')
+          .eq('type', 'output')
+          .in('project_id', projectIds);
+        
+        const receiptMap: Record<string, number> = {};
+        const invoiceMap: Record<string, number> = {};
+        
+        transactions?.forEach(t => {
+          if (t.type === 'receipt') {
+            receiptMap[t.project_id] = (receiptMap[t.project_id] || 0) + parseFloat(t.amount);
+          }
+        });
+        
+        invoices?.forEach(i => {
+          invoiceMap[i.project_id] = (invoiceMap[i.project_id] || 0) + parseFloat(i.total_amount);
+        });
+        
+        data?.forEach(p => {
+          p.receivedAmount = receiptMap[p.id] || 0;
+          p.invoicedAmount = invoiceMap[p.id] || 0;
+        });
+      }
       
       setProjects(data || []);
     } catch (error) {
@@ -87,7 +88,7 @@ if (projectIds.length > 0) {
 
   useEffect(() => {
     loadProjects();
-  }, [status]);
+  }, [status, projectType]); // 增加 projectType 依赖
 
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
@@ -155,6 +156,16 @@ if (projectIds.length > 0) {
           <option value="suspended">已暂停</option>
           <option value="planning">规划中</option>
         </select>
+        {/* 新增：项目类型筛选 */}
+        <select
+          value={projectType}
+          onChange={(e) => setProjectType(e.target.value)}
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="all">全部类型</option>
+          <option value="engineering">工程项目</option>
+          <option value="service">维保项目</option>
+        </select>
       </div>
 
       {loading ? (
@@ -166,6 +177,7 @@ if (projectIds.length > 0) {
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">项目编号</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">项目名称</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">类型</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">甲方</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">合同价</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">已收款</th>
@@ -182,6 +194,7 @@ if (projectIds.length > 0) {
                 const receivedAmount = project.receivedAmount || 0;
                 const invoicedAmount = project.invoicedAmount || 0;
                 const displayStatus = project.autoStatus || project.status;
+                const typeLabel = project.project_type === 'service' ? '维保' : '工程';
                 return (
                   <tr key={project.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">{project.code}</td>
@@ -189,6 +202,11 @@ if (projectIds.length > 0) {
                       <Link to={`/projects/${project.id}`} className="text-blue-600 hover:underline">
                         {project.name}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`px-2 py-0.5 rounded text-xs ${project.project_type === 'service' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {typeLabel}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-sm">{project.client || '-'}</td>
                     <td className="px-4 py-3 text-right text-sm">{formatAmount(contractAmount)}</td>
