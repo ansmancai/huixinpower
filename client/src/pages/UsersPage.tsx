@@ -43,12 +43,10 @@ export default function UsersPage() {
     
     try {
       if (editingUser) {
-        // 编辑用户
         const updateData: any = {
           name: formData.name,
           role: formData.role,
         };
-        // 如果填写了新密码，则更新密码
         if (formData.password) {
           updateData.password_hash = formData.password;
         }
@@ -58,7 +56,6 @@ export default function UsersPage() {
           .eq('id', editingUser.id);
         if (error) throw error;
       } else {
-        // 新建用户
         const { error } = await supabase
           .from('users')
           .insert([{
@@ -96,6 +93,7 @@ export default function UsersPage() {
     finance: '财务',
     boss: '老板',
     viewer: '浏览人',
+    site: '现场人员',
   };
 
   if (!canEdit) {
@@ -139,6 +137,7 @@ export default function UsersPage() {
                     u.role === 'admin' ? 'bg-red-100 text-red-800' :
                     u.role === 'finance' ? 'bg-blue-100 text-blue-800' :
                     u.role === 'boss' ? 'bg-purple-100 text-purple-800' :
+                    u.role === 'site' ? 'bg-green-100 text-green-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {roleMap[u.role] || u.role}
@@ -220,6 +219,7 @@ export default function UsersPage() {
                   <option value="finance">财务</option>
                   <option value="boss">老板</option>
                   <option value="viewer">浏览人</option>
+                  <option value="site">现场人员</option>
                 </select>
               </div>
               {editingUser ? (
