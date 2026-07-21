@@ -17,7 +17,6 @@ export default function SiteProjectDetailPage() {
       if (!id) return;
       setLoading(true);
       try {
-        // 获取项目详情
         const { data: projectData, error } = await supabase
           .from('projects')
           .select('*')
@@ -26,7 +25,6 @@ export default function SiteProjectDetailPage() {
         if (error) throw error;
         setProject(projectData);
 
-        // 获取巡检记录（不关联 users 表，避免类型不匹配导致查询失败）
         const { data: inspectionsData } = await supabase
           .from('service_inspections')
           .select('*')
@@ -34,7 +32,6 @@ export default function SiteProjectDetailPage() {
           .order('inspection_date', { ascending: false });
         setInspections(inspectionsData || []);
 
-        // 设置最近一次巡检记录
         if (inspectionsData && inspectionsData.length > 0) {
           setLatestInspection(inspectionsData[0]);
         }
@@ -72,7 +69,6 @@ export default function SiteProjectDetailPage() {
     return map[conclusion] || 'bg-gray-100';
   };
 
-  // 判断巡检是否逾期
   const isOverdue = () => {
     if (!latestInspection || !project) return true;
     const lastDate = new Date(latestInspection.inspection_date);
@@ -118,25 +114,13 @@ export default function SiteProjectDetailPage() {
         </div>
       </div>
 
-      {/* 项目基本信息 */}
+      {/* 项目基本信息 - 只显示服务相关字段，不显示财务数据 */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">项目信息</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-gray-500">客户名称</p>
             <p className="font-medium">{project.client || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">乙方</p>
-            <p className="font-medium">{project.contractor || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">合同编号</p>
-            <p className="font-medium">{project.contract_no || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">合同金额</p>
-            <p className="font-medium">{project.contract_amount ? `¥${parseFloat(project.contract_amount).toFixed(2)}` : '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">服务起始日期</p>
