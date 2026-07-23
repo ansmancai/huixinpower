@@ -11,7 +11,6 @@ export default function MobileLayout() {
     navigate('/login');
   };
 
-  // 如果 user 为空，不渲染导航（等待登录状态恢复）
   if (!user) {
     return (
       <div className="flex flex-col h-screen bg-gray-50">
