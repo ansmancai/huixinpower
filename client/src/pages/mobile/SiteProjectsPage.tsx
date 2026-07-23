@@ -54,12 +54,10 @@ export default function MobileSiteProjectsPage() {
     }
   };
 
-  // 首次加载
   useEffect(() => {
     loadProjects(true);
   }, []);
 
-  // 防抖搜索
   useEffect(() => {
     if (searchTimer) clearTimeout(searchTimer);
     const timer = setTimeout(() => {
@@ -69,7 +67,7 @@ export default function MobileSiteProjectsPage() {
     return () => clearTimeout(timer);
   }, [keyword]);
 
-  // 判断巡检是否逾期
+  // 判断巡检是否逾期（仅用于文字颜色）
   const isOverdue = (project: any) => {
     if (!project.latestInspection) return true;
     const lastDate = new Date(project.latestInspection.inspection_date);
@@ -85,7 +83,6 @@ export default function MobileSiteProjectsPage() {
     return false;
   };
 
-  // 获取项目状态
   const getProjectStatus = (project: any) => {
     const now = new Date();
     const start = project.start_date ? new Date(project.start_date) : null;
@@ -170,16 +167,13 @@ export default function MobileSiteProjectsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${status.color}`}>
                           {status.label}
                         </span>
-                        {overdue && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
-                            逾期
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs">
                         <span className={`font-medium ${conclusionColor}`}>{conclusionLabel}</span>
                         <span className="text-gray-400">·</span>
-                        <span className="text-gray-400">{latest ? formatDate(latest.inspection_date) : '未巡检'}</span>
+                        <span className={overdue ? 'text-red-600' : 'text-gray-400'}>
+                          {latest ? formatDate(latest.inspection_date) : '未巡检'}
+                        </span>
                       </div>
                     </div>
                   </div>
