@@ -26,12 +26,10 @@ import SupplierSearch from './pages/mobile/SupplierSearch';
 import TransactionSearch from './pages/mobile/TransactionSearch';
 import MobileLayout from './Mobile/layouts/MobileLayout';
 
-// 维保管理页面（PC版）
 import SiteProjectsPage from './pages/site/ProjectsPage';
 import SiteProjectDetailPage from './pages/site/ProjectDetailPage';
 import SiteInspectionForm from './pages/site/InspectionForm';
 
-// 手机版维保页面
 import MobileSiteProjectsPage from './pages/mobile/SiteProjectsPage';
 import MobileSiteProjectDetailPage from './pages/mobile/SiteProjectDetailPage';
 import MobileSiteInspectionForm from './pages/mobile/SiteInspectionForm';
@@ -71,120 +69,82 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* ==================== 手机端路由 ==================== */}
-      {/* 手机端首页 - 根据角色显示不同内容 */}
+      {/* ==================== 手机端路由（嵌套结构） ==================== */}
       <Route
-        path="mobile-home"
         element={
           <PrivateRoute>
-            <MobileRoleGuard allowedRoles={['site', 'admin', 'finance', 'boss', 'viewer']}>
-              <MobileLayout>
-                <MobileHome />
-              </MobileLayout>
-            </MobileRoleGuard>
+            <MobileLayout />
           </PrivateRoute>
         }
-      />
+      >
+        <Route path="mobile-home" element={<MobileHome />} />
 
-      {/* 手机端财务搜索 - site 角色不可访问 */}
-      <Route
-        path="mobile/purchase-search"
-        element={
-          <PrivateRoute>
+        <Route
+          path="mobile/purchase-search"
+          element={
             <MobileRoleGuard allowedRoles={['admin', 'finance', 'boss', 'viewer']}>
-              <MobileLayout>
-                <PurchaseSearch />
-              </MobileLayout>
+              <PurchaseSearch />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/project-search"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/project-search"
+          element={
             <MobileRoleGuard allowedRoles={['admin', 'finance', 'boss', 'viewer']}>
-              <MobileLayout>
-                <ProjectSearch />
-              </MobileLayout>
+              <ProjectSearch />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/supplier-search"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/supplier-search"
+          element={
             <MobileRoleGuard allowedRoles={['admin', 'finance', 'boss', 'viewer']}>
-              <MobileLayout>
-                <SupplierSearch />
-              </MobileLayout>
+              <SupplierSearch />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/transaction-search"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/transaction-search"
+          element={
             <MobileRoleGuard allowedRoles={['admin', 'finance', 'boss', 'viewer']}>
-              <MobileLayout>
-                <TransactionSearch />
-              </MobileLayout>
+              <TransactionSearch />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
+          }
+        />
 
-      {/* 手机端维保管理 - site / admin / finance / boss 可访问 */}
-      <Route
-        path="mobile/site/projects"
-        element={
-          <PrivateRoute>
+        <Route
+          path="mobile/site/projects"
+          element={
             <MobileRoleGuard allowedRoles={['site', 'admin', 'finance', 'boss']}>
-              <MobileLayout>
-                <MobileSiteProjectsPage />
-              </MobileLayout>
+              <MobileSiteProjectsPage />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/site/projects/:id"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/site/projects/:id"
+          element={
             <MobileRoleGuard allowedRoles={['site', 'admin', 'finance', 'boss']}>
-              <MobileLayout>
-                <MobileSiteProjectDetailPage />
-              </MobileLayout>
+              <MobileSiteProjectDetailPage />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/site/projects/:id/inspection/new"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/site/projects/:id/inspection/new"
+          element={
             <MobileRoleGuard allowedRoles={['site', 'admin', 'finance', 'boss']}>
-              <MobileLayout>
-                <MobileSiteInspectionForm />
-              </MobileLayout>
+              <MobileSiteInspectionForm />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="mobile/site/projects/:id/inspection/:inspectionId/edit"
-        element={
-          <PrivateRoute>
+          }
+        />
+        <Route
+          path="mobile/site/projects/:id/inspection/:inspectionId/edit"
+          element={
             <MobileRoleGuard allowedRoles={['site', 'admin', 'finance', 'boss']}>
-              <MobileLayout>
-                <MobileSiteInspectionForm />
-              </MobileLayout>
+              <MobileSiteInspectionForm />
             </MobileRoleGuard>
-          </PrivateRoute>
-        }
-      />
+          }
+        />
+      </Route>
 
       {/* ==================== PC端维保管理路由 ==================== */}
       <Route
