@@ -64,7 +64,6 @@ export default function MobileSiteInspectionForm() {
         project_id: id,
         inspection_date: formData.inspection_date,
         inspector_id: user.id,
-        inspector_name: user.name,
         conclusion: formData.conclusion,
         remark: formData.remark || null,
       };
