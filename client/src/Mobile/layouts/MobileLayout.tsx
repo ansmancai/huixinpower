@@ -1,11 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
-interface MobileLayoutProps {
-  children: React.ReactNode;
-}
-
-export default function MobileLayout({ children }: MobileLayoutProps) {
+export default function MobileLayout() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
@@ -14,49 +11,73 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
     navigate('/login');
   };
 
+  // 根据角色定义可见菜单
+  const isSite = user?.role === 'site';
+  const isViewer = user?.role === 'viewer';
+
+  // 现场人员：只看到“维保项目”一个标签
+  if (isSite) {
+    return (
+      <div className="flex flex-col h-screen bg-gray-50">
+        <header className="bg-white px-4 py-3 shadow-sm flex justify-between items-center">
+          <h1 className="text-lg font-bold text-gray-800">汇信电力</h1>
+          <button onClick={handleLogout} className="text-sm text-gray-500">退出</button>
+        </header>
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+        <nav className="bg-white border-t border-gray-200 flex justify-around py-2">
+          <Link
+            to="/mobile/site/projects"
+            className={`flex flex-col items-center py-1 px-3 ${
+              location.pathname.startsWith('/mobile/site') ? 'text-blue-600' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl">🔧</span>
+            <span className="text-xs">维保项目</span>
+          </Link>
+        </nav>
+      </div>
+    );
+  }
+
+  // 其他角色：完整菜单（viewer 不显示维保）
+  const menuItems = [
+    { path: '/mobile-home', icon: '🏠', label: '首页' },
+    { path: '/mobile/project-search', icon: '🏗️', label: '项目' },
+    { path: '/mobile/purchase-search', icon: '🛒', label: '采购' },
+    { path: '/mobile/supplier-search', icon: '🏭', label: '供应商' },
+    { path: '/mobile/transaction-search', icon: '💰', label: '收付款' },
+  ];
+
+  // viewer 不显示维保，其他角色（admin/finance/boss）显示
+  if (!isViewer) {
+    menuItems.push({ path: '/mobile/site/projects', icon: '🔧', label: '维保' });
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 pb-16">
-      {/* 顶部栏 */}
-      <div className="bg-blue-600 text-white p-4 sticky top-0 z-10">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-lg font-bold">汇信电力</h1>
-            <p className="text-xs text-blue-200">{user?.name}</p>
-          </div>
-          <button onClick={handleLogout} className="text-sm bg-blue-700 px-3 py-1 rounded">
-            退出
-          </button>
-        </div>
-      </div>
-
-      {/* 内容区域 */}
-      <main className="p-4">
-        {children}
+    <div className="flex flex-col h-screen bg-gray-50">
+      <header className="bg-white px-4 py-3 shadow-sm flex justify-between items-center">
+        <h1 className="text-lg font-bold text-gray-800">汇信电力</h1>
+        <button onClick={handleLogout} className="text-sm text-gray-500">退出</button>
+      </header>
+      <main className="flex-1 overflow-y-auto">
+        <Outlet />
       </main>
-
-      {/* 底部导航栏 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-2">
-        <Link to="/mobile-home" className="flex flex-col items-center py-1 text-gray-600">
-          <span className="text-xl">🏠</span>
-          <span className="text-xs">首页</span>
-        </Link>
-        <Link to="/mobile/purchase-search" className="flex flex-col items-center py-1 text-gray-600">
-          <span className="text-xl">🛒</span>
-          <span className="text-xs">采购</span>
-        </Link>
-        <Link to="/mobile/project-search" className="flex flex-col items-center py-1 text-gray-600">
-          <span className="text-xl">📋</span>
-          <span className="text-xs">项目</span>
-        </Link>
-        <Link to="/mobile/supplier-search" className="flex flex-col items-center py-1 text-gray-600">
-          <span className="text-xl">🏭</span>
-          <span className="text-xs">供应商</span>
-        </Link>
-        <Link to="/mobile/transaction-search" className="flex flex-col items-center py-1 text-gray-600">
-          <span className="text-xl">💰</span>
-          <span className="text-xs">收付款</span>
-        </Link>
-      </div>
+      <nav className="bg-white border-t border-gray-200 flex justify-around py-2">
+        {menuItems.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`flex flex-col items-center py-1 px-3 ${
+              location.pathname === item.path ? 'text-blue-600' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl">{item.icon}</span>
+            <span className="text-xs">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
