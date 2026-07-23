@@ -116,10 +116,21 @@ export default function MobileSiteProjectDetailPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50">
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
+        {/* 项目信息 - 顶部带新增按钮 */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <h1 className="text-lg font-bold text-gray-800">{project.name}</h1>
-          <p className="text-sm text-gray-500">{project.code}</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-gray-800 truncate">{project.name}</h1>
+              <p className="text-sm text-gray-500">{project.code}</p>
+            </div>
+            <Link
+              to={`/mobile/site/projects/${id}/inspection/new`}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 active:bg-blue-800 flex-shrink-0 ml-3"
+            >
+              + 新增巡检
+            </Link>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="text-gray-500">客户</span>
               <p className="font-medium">{project.client || '-'}</p>
@@ -151,6 +162,7 @@ export default function MobileSiteProjectDetailPage() {
           )}
         </div>
 
+        {/* 巡检记录列表 */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">巡检记录</h2>
           {inspections.length === 0 ? (
@@ -195,15 +207,6 @@ export default function MobileSiteProjectDetailPage() {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <Link
-          to={`/mobile/site/projects/${id}/inspection/new`}
-          className="block w-full bg-blue-600 text-white text-center py-3 rounded-lg font-medium text-sm hover:bg-blue-700 active:bg-blue-800"
-        >
-          + 新增巡检
-        </Link>
       </div>
     </div>
   );
