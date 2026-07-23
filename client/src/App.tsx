@@ -1,4 +1,3 @@
-// client/src/App.tsx
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
@@ -47,7 +46,6 @@ function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allo
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
   if (!allowedRoles.includes(user.role)) {
-    // site 角色跳转到维保项目列表
     if (user.role === 'site') {
       return <Navigate to="/site/projects" replace />;
     }
@@ -60,7 +58,6 @@ function MobileRoleGuard({ children, allowedRoles }: { children: React.ReactNode
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
   if (!allowedRoles.includes(user.role)) {
-    // site 角色跳转到手机版维保列表
     if (user.role === 'site') {
       return <Navigate to="/mobile/site/projects" replace />;
     }

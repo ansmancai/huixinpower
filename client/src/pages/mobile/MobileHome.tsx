@@ -12,12 +12,8 @@ export default function MobileHome() {
     site: '现场人员',
   };
 
-  // 根据角色决定显示哪些入口
-  const isSite = user?.role === 'site';
-  const isViewer = user?.role === 'viewer';
-
-  // 现场人员只看到维保入口
-  if (isSite) {
+  // 现场人员：只看到维保入口
+  if (user?.role === 'site') {
     return (
       <div className="flex flex-col h-full bg-gray-50">
         <div className="p-4 bg-white shadow-sm">
@@ -42,7 +38,9 @@ export default function MobileHome() {
     );
   }
 
-  // 其他角色显示完整入口（viewer 不显示维保）
+  // 其他角色：显示所有入口（包括维保）
+  const isViewer = user?.role === 'viewer';
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
       <div className="p-4 bg-white shadow-sm">
@@ -98,6 +96,7 @@ export default function MobileHome() {
             </div>
           </div>
         </Link>
+        {/* 维保入口 - 对所有非 viewer 角色可见 */}
         {!isViewer && (
           <Link
             to="/mobile/site/projects"

@@ -109,17 +109,18 @@ export default function Layout() {
           })}
         </nav>
         
-      {/* 手机版入口 - 仅非 site 角色显示 */}
-{user?.role !== 'site' && (
-  <div className="px-4 pb-2">
-    <Link
-      to="/mobile-home"
-      className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition-all duration-200"
-    >
-      <span className="text-xl">📱</span>
-      <span className="font-medium">手机版</span>
-    </Link>
-  </div>
+      // ... 其他代码保持不变，找到"手机版入口"部分，替换为：
+
+{/* 手机版入口 - 所有角色可见 */}
+<div className="px-4 pb-2">
+  <Link
+    to="/mobile-home"
+    className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition-all duration-200"
+  >
+    <span className="text-xl">📱</span>
+    <span className="font-medium">手机版</span>
+  </Link>
+</div>
 )}
         
         <div className="absolute bottom-0 w-64 p-4 border-t border-gray-800">
