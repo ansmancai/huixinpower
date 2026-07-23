@@ -121,7 +121,7 @@ export default function Layout() {
     <span className="font-medium">手机版</span>
   </Link>
 </div>
-)}
+)
         
         <div className="absolute bottom-0 w-64 p-4 border-t border-gray-800">
           <div className="flex items-center gap-3">
