@@ -1,56 +1,117 @@
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 
 export default function MobileHome() {
-  return (
-    <div className="min-h-screen bg-gray-100 p-3 sm:p-4">
-      {/* 头部卡片 */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-4 sm:p-6 mb-4 text-white">
-        <h1 className="text-xl sm:text-2xl font-bold text-center">汇信电力管理（菜心1.2版）</h1>
-        <p className="text-center text-blue-100 text-xs sm:text-sm mt-1">移动快捷查询</p>
-      </div>
+  const { user } = useAuthStore();
 
-      {/* 功能网格 - 响应式列数 */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <Link 
-          to="/mobile/purchase-search" 
-          className="bg-white rounded-xl shadow p-3 sm:p-4 text-center hover:shadow-md transition active:bg-gray-50"
-        >
-          <div className="text-3xl sm:text-4xl mb-1">🛒</div>
-          <div className="font-medium text-sm sm:text-base">采购查询</div>
-          <div className="text-xs text-gray-400 mt-0.5">按项目/供应商</div>
-        </Link>
-        
-        <Link 
-          to="/mobile/project-search" 
-          className="bg-white rounded-xl shadow p-3 sm:p-4 text-center hover:shadow-md transition active:bg-gray-50"
-        >
-          <div className="text-3xl sm:text-4xl mb-1">📋</div>
-          <div className="font-medium text-sm sm:text-base">项目查询</div>
-          <div className="text-xs text-gray-400 mt-0.5">合同/收款/采购</div>
-        </Link>
-        
-        <Link 
-          to="/mobile/supplier-search" 
-          className="bg-white rounded-xl shadow p-3 sm:p-4 text-center hover:shadow-md transition active:bg-gray-50"
-        >
-          <div className="text-3xl sm:text-4xl mb-1">🏭</div>
-          <div className="font-medium text-sm sm:text-base">供应商查询</div>
-          <div className="text-xs text-gray-400 mt-0.5">采购/付款明细</div>
-        </Link>
-        
-        <Link 
-          to="/mobile/transaction-search" 
-          className="bg-white rounded-xl shadow p-3 sm:p-4 text-center hover:shadow-md transition active:bg-gray-50"
-        >
-          <div className="text-3xl sm:text-4xl mb-1">💰</div>
-          <div className="font-medium text-sm sm:text-base">收付款查询</div>
-          <div className="text-xs text-gray-400 mt-0.5">流水记录</div>
-        </Link>
+  const roleNameMap: Record<string, string> = {
+    admin: '管理员',
+    finance: '财务',
+    boss: '老板',
+    viewer: '浏览人',
+    site: '现场人员',
+  };
+
+  // 根据角色决定显示哪些入口
+  const isSite = user?.role === 'site';
+  const isViewer = user?.role === 'viewer';
+
+  // 现场人员只看到维保入口
+  if (isSite) {
+    return (
+      <div className="flex flex-col h-full bg-gray-50">
+        <div className="p-4 bg-white shadow-sm">
+          <h1 className="text-xl font-bold text-gray-800">汇信电力</h1>
+          <p className="text-sm text-gray-500">{user?.name}（{roleNameMap[user?.role || ''] || user?.role}）</p>
+        </div>
+        <div className="flex-1 p-4">
+          <Link
+            to="/mobile/site/projects"
+            className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔧</span>
+              <div>
+                <p className="font-medium text-gray-800">维保项目</p>
+                <p className="text-sm text-gray-400">查看和记录巡检</p>
+              </div>
+            </div>
+          </Link>
+        </div>
       </div>
-      
-      {/* 底部提示 */}
-      <div className="mt-6 text-center text-xs text-gray-400">
-        电脑版请访问 ft.gdhxpower.com
+    );
+  }
+
+  // 其他角色显示完整入口（viewer 不显示维保）
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="p-4 bg-white shadow-sm">
+        <h1 className="text-xl font-bold text-gray-800">汇信电力</h1>
+        <p className="text-sm text-gray-500">{user?.name}（{roleNameMap[user?.role || ''] || user?.role}）</p>
+      </div>
+      <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+        <Link
+          to="/mobile/project-search"
+          className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏗️</span>
+            <div>
+              <p className="font-medium text-gray-800">项目</p>
+              <p className="text-sm text-gray-400">搜索和查看项目</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          to="/mobile/purchase-search"
+          className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🛒</span>
+            <div>
+              <p className="font-medium text-gray-800">采购</p>
+              <p className="text-sm text-gray-400">搜索和查看采购</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          to="/mobile/supplier-search"
+          className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏭</span>
+            <div>
+              <p className="font-medium text-gray-800">供应商</p>
+              <p className="text-sm text-gray-400">搜索和查看供应商</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          to="/mobile/transaction-search"
+          className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">💰</span>
+            <div>
+              <p className="font-medium text-gray-800">收付款</p>
+              <p className="text-sm text-gray-400">搜索和查看收付款</p>
+            </div>
+          </div>
+        </Link>
+        {!isViewer && (
+          <Link
+            to="/mobile/site/projects"
+            className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔧</span>
+              <div>
+                <p className="font-medium text-gray-800">维保项目</p>
+                <p className="text-sm text-gray-400">查看和记录巡检</p>
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
     </div>
   );
