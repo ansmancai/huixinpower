@@ -12,7 +12,7 @@ export default function ProjectDetailPage() {
   const [relatedPurchases, setRelatedPurchases] = useState<any[]>([]);
   const [relatedTransactions, setRelatedTransactions] = useState<any[]>([]);
   const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
-  const [inspections, setInspections] = useState<any[]>([]); // 巡检记录
+  const [inspections, setInspections] = useState<any[]>([]);
   const [stats, setStats] = useState({
     totalPurchases: 0,
     totalPaid: 0,
@@ -343,6 +343,7 @@ export default function ProjectDetailPage() {
                   <th className="px-4 py-2 text-left text-sm">供应商</th>
                   <th className="px-4 py-2 text-right text-sm">金额</th>
                   <th className="px-4 py-2 text-right text-sm">未付款金额</th>
+                  <th className="px-4 py-2 text-right text-sm">未收票金额</th>
                   <th className="px-4 py-2 text-center text-sm">物流状态</th>
                 </tr>
               </thead>
@@ -352,6 +353,10 @@ export default function ProjectDetailPage() {
                     .filter(t => t.purchase_id === p.id && t.type === 'payment')
                     .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
                   const unpaidAmount = parseFloat(p.amount) - paidForPurchase;
+                  const invoicedForPurchase = relatedInvoices
+                    .filter(t => t.purchase_id === p.id)
+                    .reduce((sum, t) => sum + parseFloat(t.total_amount), 0);
+                  const uninvoicedAmount = parseFloat(p.amount) - invoicedForPurchase;
                   return (
                     <tr key={p.id} className="border-t">
                       <td className="px-4 py-2 text-sm">{new Date(p.purchase_date).toLocaleDateString()}</td>
@@ -363,6 +368,7 @@ export default function ProjectDetailPage() {
                       <td className="px-4 py-2 text-sm">{p.suppliers?.name || '-'}</td>
                       <td className="px-4 py-2 text-right">{formatAmount(parseFloat(p.amount))}</td>
                       <td className="px-4 py-2 text-right text-red-600">{formatAmount(unpaidAmount)}</td>
+                      <td className="px-4 py-2 text-right text-orange-600">{formatAmount(uninvoicedAmount)}</td>
                       <td className="px-4 py-2 text-center">
                         <span className="px-2 py-1 rounded-full text-xs bg-blue-100">
                           {p.logistics_status === 'arrived' ? '已到货' : p.logistics_status === 'ordered' ? '已下单' : '待发货'}
