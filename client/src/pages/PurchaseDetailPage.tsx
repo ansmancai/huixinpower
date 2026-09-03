@@ -21,7 +21,6 @@ export default function PurchaseDetailPage() {
       if (!id) return;
       setLoading(true);
       try {
-        // 获取采购详情
         const { data: purchaseData, error } = await supabase
           .from('purchases')
           .select('*')
@@ -30,7 +29,6 @@ export default function PurchaseDetailPage() {
         if (error) throw error;
         setPurchase(purchaseData);
 
-        // 获取关联项目
         if (purchaseData.project_id) {
           const { data: projectData } = await supabase
             .from('projects')
@@ -40,7 +38,6 @@ export default function PurchaseDetailPage() {
           setProject(projectData);
         }
 
-        // 获取关联供应商
         if (purchaseData.supplier_id) {
           const { data: supplierData } = await supabase
             .from('suppliers')
@@ -50,7 +47,6 @@ export default function PurchaseDetailPage() {
           setSupplier(supplierData);
         }
 
-        // 获取关联付款记录
         const { data: payments } = await supabase
           .from('transactions')
           .select('*')
@@ -59,7 +55,6 @@ export default function PurchaseDetailPage() {
           .order('date', { ascending: false });
         setRelatedPayments(payments || []);
 
-        // 获取关联发票
         const { data: invoices } = await supabase
           .from('invoices')
           .select('*')
