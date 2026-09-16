@@ -35,7 +35,6 @@ export default function SiteProjectDetailPage() {
         if (inspectionsData && inspectionsData.length > 0) {
           setLatestInspection(inspectionsData[0]);
         }
-
       } catch (error) {
         console.error('加载项目详情失败', error);
         navigate('/site/projects');
@@ -130,7 +129,7 @@ export default function SiteProjectDetailPage() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64 text-gray-500">加载中...</div>;
+    return <div className="text-center py-12 text-gray-500">加载中...</div>;
   }
 
   if (!project) {
@@ -140,97 +139,142 @@ export default function SiteProjectDetailPage() {
   const overdue = isOverdue();
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <h1 className="text-lg font-bold text-gray-800">{project.name}</h1>
-          <p className="text-sm text-gray-500">{project.code}</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="text-gray-500">客户</span>
-              <p className="font-medium">{project.client || '-'}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">服务期限</span>
-              <p className="font-medium">
-                {formatDate(project.start_date)} ~ {formatDate(project.end_date)}
-              </p>
-            </div>
-            <div>
-              <span className="text-gray-500">巡检周期</span>
-              <p className="font-medium">
-                {project.inspection_cycle === 'monthly' ? '每月' : project.inspection_cycle === 'quarterly' ? '每季度' : '-'}
-              </p>
-            </div>
-            <div>
-              <span className="text-gray-500">最近巡检</span>
-              <p className={`font-medium ${overdue ? 'text-red-600 font-bold' : ''}`}>
-                {latestInspection ? formatDate(latestInspection.inspection_date) : '未巡检'}
-                {overdue && <span className="ml-1 text-red-500">⚠️ 逾期</span>}
-              </p>
-            </div>
-          </div>
-          {project.remark && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-sm text-gray-500">项目简介</p>
-              <p className="text-sm text-gray-700 mt-0.5">{project.remark}</p>
-            </div>
-          )}
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <Link to="/site/projects" className="text-blue-600 hover:underline mb-2 inline-block">
+            ← 返回维保项目列表
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
+          <p className="text-gray-500">项目编号：{project.code}</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">巡检记录</h2>
-          {inspections.length === 0 ? (
-            <p className="text-center text-gray-400 text-sm py-4">暂无巡检记录</p>
-          ) : (
-            <div className="space-y-2">
-              {inspections.map((inv) => {
-                const canModify = canModifyInspection(inv);
-                return (
-                  <div key={inv.id} className="border-b border-gray-100 last:border-0 pb-2 last:pb-0">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-sm font-medium">{formatDate(inv.inspection_date)}</span>
-                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${getConclusionColor(inv.conclusion)}`}>
-                          {getConclusionLabel(inv.conclusion)}
-                        </span>
-                      </div>
-                      {canModify && (
-                        <div className="flex gap-2 text-xs">
-                          <Link
-                            to={`/mobile/site/projects/${id}/inspection/${inv.id}/edit`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            编辑
-                          </Link>
-                          <button
-                            onClick={() => handleDeleteInspection(inv.id)}
-                            className="text-red-600 hover:underline"
-                          >
-                            删除
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {inv.remark && (
-                      <p className="text-xs text-gray-500 mt-0.5">{inv.remark}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-0.5">巡检人：{inv.inspector_name || inv.inspector_id || '-'}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div className="flex gap-2">
+          <Link
+            to={`/site/projects/${id}/inspection/new`}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          >
+            + 新增巡检
+          </Link>
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <Link
-          to={`/mobile/site/projects/${id}/inspection/new`}
-          className="block w-full bg-blue-600 text-white text-center py-3 rounded-lg font-medium text-sm hover:bg-blue-700 active:bg-blue-800"
-        >
-          + 新增巡检
-        </Link>
+      {/* 项目基本信息 */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">项目信息</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-gray-500">客户名称</p>
+            <p className="font-medium">{project.client || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">服务起始日期</p>
+            <p className="font-medium">{formatDate(project.start_date)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">服务结束日期</p>
+            <p className="font-medium">{formatDate(project.end_date)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">巡检周期</p>
+            <p className="font-medium">{project.inspection_cycle === 'monthly' ? '每月' : project.inspection_cycle === 'quarterly' ? '每季度' : '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">最近巡检</p>
+            <p className="font-medium">
+              {latestInspection ? (
+                <span className={overdue ? 'text-red-600 font-bold' : 'text-gray-700'}>
+                  {formatDate(latestInspection.inspection_date)}
+                  {overdue && <span className="ml-1 text-red-500">⚠️ 逾期</span>}
+                </span>
+              ) : (
+                <span className="text-red-500 font-bold">未巡检</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">最近结论</p>
+            <p className="font-medium">
+              {latestInspection ? (
+                <span className={`px-2 py-0.5 rounded-full text-xs ${getConclusionColor(latestInspection.conclusion)}`}>
+                  {getConclusionLabel(latestInspection.conclusion)}
+                </span>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </p>
+          </div>
+        </div>
+        {project.remark && (
+          <div className="mt-4">
+            <p className="text-sm text-gray-500">项目简介</p>
+            <p className="mt-1 text-gray-700">{project.remark}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 巡检记录 */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">巡检记录</h2>
+          <Link
+            to={`/site/projects/${id}/inspection/new`}
+            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"
+          >
+            + 新增巡检
+          </Link>
+        </div>
+        {inspections.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">暂无巡检记录</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm">巡检日期</th>
+                  <th className="px-4 py-2 text-left text-sm">巡检人</th>
+                  <th className="px-4 py-2 text-center text-sm">结论</th>
+                  <th className="px-4 py-2 text-left text-sm">备注</th>
+                  <th className="px-4 py-2 text-center text-sm">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inspections.map((inv) => {
+                  const canModify = canModifyInspection(inv);
+                  return (
+                    <tr key={inv.id} className="border-t">
+                      <td className="px-4 py-2 text-sm">{formatDate(inv.inspection_date)}</td>
+                      <td className="px-4 py-2 text-sm">{inv.inspector_name || inv.inspector_id || '-'}</td>
+                      <td className="px-4 py-2 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs ${getConclusionColor(inv.conclusion)}`}>
+                          {getConclusionLabel(inv.conclusion)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm max-w-[200px] truncate">{inv.remark || '-'}</td>
+                      <td className="px-4 py-2 text-center">
+                        {canModify && (
+                          <div className="flex justify-center gap-2">
+                            <Link
+                              to={`/site/projects/${id}/inspection/${inv.id}/edit`}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              编辑
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteInspection(inv.id)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
