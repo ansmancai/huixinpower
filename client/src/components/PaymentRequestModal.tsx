@@ -244,7 +244,7 @@ export default function PaymentRequestModal({
           <div className="mt-6 pt-4 border-t">
             <h4 className="text-md font-semibold mb-3">📄 可能关联的发票</h4>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-base">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-3 py-2 text-left">发票号码</th>
