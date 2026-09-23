@@ -28,7 +28,7 @@ export default function PaymentRequestModal({
       if (!purchase?.id) return;
       const { data } = await supabase
         .from('invoices')
-        .select('id, invoice_no, total_amount, status, invoice_date')
+        .select('id, invoice_no, total_amount, status, invoice_date, file_path')
         .eq('purchase_id', purchase.id)
         .order('invoice_date', { ascending: false });
       setRelatedInvoices(data || []);
@@ -255,22 +255,40 @@ export default function PaymentRequestModal({
                 </thead>
                 <tbody>
                   {relatedInvoices.length > 0 ? (
-                    relatedInvoices.map((inv) => (
-                      <tr key={inv.id} className="border-t">
-                        <td className="px-3 py-2 font-mono">{inv.invoice_no}</td>
-                        <td className="px-3 py-2 text-right">{formatAmount(parseFloat(inv.total_amount))}</td>
-                        <td className="px-3 py-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            inv.status === 'paid' ? 'bg-green-100 text-green-800' :
-                            inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {invoiceStatusMap[inv.status] || inv.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    relatedInvoices.map((inv) => {
+                      const fileUrl = inv.file_path
+                        ? supabase.storage.from('invoices').getPublicUrl(inv.file_path).data.publicUrl
+                        : null;
+                      return (
+                        <tr key={inv.id} className="border-t">
+                          <td className="px-3 py-2 font-mono">
+                            {fileUrl ? (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                {inv.invoice_no} 📄
+                              </a>
+                            ) : (
+                              inv.invoice_no
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right">{formatAmount(parseFloat(inv.total_amount))}</td>
+                          <td className="px-3 py-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                              inv.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {invoiceStatusMap[inv.status] || inv.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr className="border-t">
                       <td className="px-3 py-2 text-center text-gray-400" colSpan={4}>
@@ -282,7 +300,7 @@ export default function PaymentRequestModal({
               </table>
             </div>
             <p className="text-xs text-gray-400 mt-2">
-              此付款单关联的采购单对应的发票（仅供参考）
+              此付款单关联的采购单对应的发票（点击发票号码可直接打开附件打印）
             </p>
           </div>
         </div>
