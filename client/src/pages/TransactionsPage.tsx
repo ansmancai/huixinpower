@@ -149,21 +149,18 @@ export default function TransactionsPage() {
       let baseQuery = supabase.from('transactions').select('*, projects(name), suppliers(name)', { count: 'exact' });
       
       if (keyword) {
-        // 搜索项目名称匹配的项目ID
         const { data: matchedProjects } = await supabase
           .from('projects')
           .select('id')
           .ilike('name', `%${keyword}%`);
         const projectIds = matchedProjects?.map(p => p.id) || [];
         
-        // 搜索供应商名称匹配的供应商ID
         const { data: matchedSuppliers } = await supabase
           .from('suppliers')
           .select('id')
           .ilike('name', `%${keyword}%`);
         const supplierIds = matchedSuppliers?.map(s => s.id) || [];
         
-        // 构建 OR 条件
         const conditions = [`remark.ilike.%${keyword}%`, `receipt_no.ilike.%${keyword}%`, `counterparty_name.ilike.%${keyword}%`];
         if (projectIds.length) conditions.push(`project_id.in.(${projectIds.join(',')})`);
         if (supplierIds.length) conditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
@@ -178,10 +175,8 @@ export default function TransactionsPage() {
       if (dateFrom) baseQuery = baseQuery.gte('date', dateFrom);
       if (dateTo) baseQuery = baseQuery.lte('date', dateTo);
       
-      // 先获取全部符合条件的数据用于计算合计
       const { data: allData } = await baseQuery;
       
-      // 计算合计：付款合计、收款合计
       let paymentSum = 0;
       let receiptSum = 0;
       allData?.forEach(item => {
@@ -195,10 +190,8 @@ export default function TransactionsPage() {
       setTotalPaymentSum(paymentSum);
       setTotalReceiptSum(receiptSum);
       
-      // 获取总数
       const { count: totalCount } = await baseQuery;
       
-      // 分页数据
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       const { data, count } = await baseQuery.range(from, to).order('date', { ascending: false });
@@ -232,7 +225,6 @@ export default function TransactionsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // 构建带参数的详情页链接
   const getDetailUrl = (id: string) => {
     const params = new URLSearchParams();
     if (page !== 1) params.set('page', page.toString());
@@ -246,7 +238,6 @@ export default function TransactionsPage() {
     return `/transactions/${id}${queryString ? `?${queryString}` : ''}`;
   };
 
-  // 获取对方名称显示值
   const getCounterpartyName = (t: any) => {
     if (t.type === 'payment') {
       return t.suppliers?.name || '-';
@@ -388,7 +379,14 @@ export default function TransactionsPage() {
                     <td className="px-4 py-3 text-center">
                       <div className="flex justify-center gap-2">
                         <Link to={getDetailUrl(t.id)} className="text-blue-600 text-sm">查看</Link>
-                        {canEdit && <Link to={`/transactions/${t.id}/edit`} className="text-blue-600 text-sm">编辑</Link>}
+                        {canEdit && (
+                          <Link 
+                            to={`/transactions/${t.id}/edit?${location.search.substring(1)}`} 
+                            className="text-blue-600 text-sm"
+                          >
+                            编辑
+                          </Link>
+                        )}
                         {user?.role === 'admin' && (
                           <button onClick={() => handleDelete(t.id)} className="text-red-600 text-sm">删除</button>
                         )}

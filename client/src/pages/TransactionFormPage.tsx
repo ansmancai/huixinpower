@@ -19,6 +19,7 @@ export default function TransactionFormPage() {
   const [purchaseOptions, setPurchaseOptions] = useState<any[]>([]);
   const [selectedProjectName, setSelectedProjectName] = useState('');
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const [selectedPurchaseName, setSelectedPurchaseName] = useState('');
   const [matchingPurchases, setMatchingPurchases] = useState<any[]>([]);
   const [originalAmount, setOriginalAmount] = useState(0);
   const [originalPurchaseId, setOriginalPurchaseId] = useState('');
@@ -37,6 +38,11 @@ export default function TransactionFormPage() {
   const isEdit = !!id;
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
   const formRef = useRef<HTMLDivElement>(null);
+
+  // 构建返回清单页的 URL
+  const getBackUrl = () => {
+    return `/transactions${location.search || ''}`;
+  };
 
   // ==================== 付款编号生成 ====================
   const generateReceiptNo = async () => {
@@ -228,10 +234,8 @@ export default function TransactionFormPage() {
     const supplierId = params.get('supplierId');
     const purchaseId = params.get('purchaseId');
     
-    // 设置 ID
     if (projectId) {
       setFormData(prev => ({ ...prev, project_id: projectId }));
-      // 加载项目名称
       supabase.from('projects').select('name').eq('id', projectId).single()
         .then(({ data }) => {
           if (data) {
@@ -242,7 +246,6 @@ export default function TransactionFormPage() {
     }
     if (supplierId) {
       setFormData(prev => ({ ...prev, supplier_id: supplierId }));
-      // 加载供应商名称
       supabase.from('suppliers').select('name').eq('id', supplierId).single()
         .then(({ data }) => {
           if (data) {
@@ -253,7 +256,6 @@ export default function TransactionFormPage() {
     }
     if (purchaseId) {
       setFormData(prev => ({ ...prev, purchase_id: purchaseId }));
-      // 加载采购名称
       supabase.from('purchases').select('purchase_no, content, amount').eq('id', purchaseId).single()
         .then(({ data }) => {
           if (data) {
@@ -388,14 +390,14 @@ export default function TransactionFormPage() {
               }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('加载交易记录失败', error);
-          navigate('/transactions');
+          alert(`加载交易记录失败：${error.message || '未知错误'}`);
         }
       };
       loadTransaction();
     }
-  }, [id, isEdit, canEdit, navigate]);
+  }, [id, isEdit, canEdit]);
 
   // ==================== 校验付款金额（修复浮点数精度问题） ====================
   const validatePaymentAmount = async (purchaseId: string, amount: number, excludeCurrentId?: string): Promise<boolean> => {
@@ -420,7 +422,6 @@ export default function TransactionFormPage() {
     const { data: payments } = await query;
     const paidTotal = (payments || []).reduce((sum, p) => sum + Math.abs(parseFloat(p.amount)), 0);
     
-    // 🔧 修复：四舍五入到两位小数，避免浮点数精度问题
     const remaining = Math.round((parseFloat(purchase.amount) - paidTotal) * 100) / 100;
     const roundedAmount = Math.round(amount * 100) / 100;
     
@@ -490,7 +491,7 @@ export default function TransactionFormPage() {
         if (error) throw error;
       }
       
-      navigate('/transactions');
+      navigate(getBackUrl());
     } catch (error: any) {
       console.error('保存失败:', error);
       alert(error.message || '保存失败');
@@ -533,7 +534,6 @@ export default function TransactionFormPage() {
     { value: 'other', label: '其他' },
   ];
 
-  // 监听粘贴事件
   useEffect(() => {
     document.addEventListener('paste', handlePaste);
     return () => {
@@ -549,7 +549,6 @@ export default function TransactionFormPage() {
     <div className="max-w-3xl mx-auto" ref={formRef}>
       <h1 className="text-2xl font-bold mb-6">{isEdit ? '编辑收付款' : '新建收付款'}</h1>
       
-      {/* OCR 提示区域 */}
       {!isEdit && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2">
@@ -644,7 +643,6 @@ export default function TransactionFormPage() {
             {selectedProjectName && <p className="text-xs text-gray-500 mt-1">已选：{selectedProjectName}</p>}
           </div>
           
-          {/* 付款时显示：关联供应商 */}
           {formData.type === 'payment' && (
             <>
               <div>
@@ -695,7 +693,6 @@ export default function TransactionFormPage() {
             </>
           )}
           
-          {/* 收款时显示：付款方名称 */}
           {formData.type === 'receipt' && (
             <div>
               <label className="block text-sm font-medium mb-1">付款方名称</label>
@@ -727,7 +724,7 @@ export default function TransactionFormPage() {
           <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
             {loading ? '保存中...' : '保存'}
           </button>
-          <button type="button" onClick={() => navigate('/transactions')} className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">
+          <button type="button" onClick={() => navigate(getBackUrl())} className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">
             取消
           </button>
         </div>
